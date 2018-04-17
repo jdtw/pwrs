@@ -8,6 +8,52 @@ use std::io;
 use std::io::prelude::*;
 use std::collections::HashMap;
 
+extern crate winapi;
+
+mod ncrypt {
+    use winapi::shared::bcrypt::*;
+    use winapi::shared::minwindef::{ULONG};
+    use winapi::um::winnt::{LPCWSTR};
+    use winapi::shared::basetsd::ULONG_PTR;
+
+    type DWORD = ULONG;
+
+    const NCRYPT_SILENT_FLAG: ULONG = 0x00000040;
+    const NCRYPT_IGNORE_DEVICE_STATE_FLAG: ULONG = 0x00001000;
+
+    type NCRYPT_HANDLE = ULONG_PTR;
+    type NCRYPT_PROV_HANDLE = ULONG_PTR;
+    type NCRYPT_HASH_HANDLE = ULONG_PTR;
+    type NCRYPT_KEY_HANDLE = ULONG_PTR;
+    type NCRYPT_SECRET_HANDLE = ULONG_PTR;
+
+    const MS_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Software Key Storage Provider";
+    const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Smart Card Key Storage Provider";
+    const MS_PLATFORM_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Platform Crypto Provider";
+    const MS_NGC_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Passport Key Storage Provider";
+
+    enum Ksp {
+        Software,
+        SmartCard,
+        Tpm,
+        Ngc,
+    }
+
+    extern "stdcall" {
+        fn NCryptOpenStorageProvider(
+            phProvider: *mut NCRYPT_PROV_HANDLE,
+            pszProviderName: LPCWSTR,
+            dwFlags: DWORD
+        ) -> NTSTATUS;
+    }
+
+    fn ncrypt_open_storage_provider(ksp: Ksp) -> Result<(), NTSTATUS> {
+        unsafe {
+        }
+        panic!("notimpl");
+    }
+}
+
 #[derive(Debug)]
 pub enum PwrsError {
     JsonError(serde_json::Error),
