@@ -4,7 +4,7 @@
 use std::ffi::OsStr;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
-use std::ptr::null_mut;
+use std::ptr::{null, null_mut};
 use winapi::shared::bcrypt::*;
 
 use winapi::shared::basetsd::ULONG_PTR;
@@ -143,18 +143,19 @@ pub enum Algorithm {
 pub fn create_persisted_key(
     provider: &NCryptHandle,
     algo: Algorithm,
-    key_name: &str, // TODO: Option<&str> for ephemeral keys
+    key_name: Option<&str>,
 ) -> Result<NCryptHandle, SECURITY_STATUS> {
     let algorithm = match algo {
         Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
     };
     let mut key = NCryptHandle::new();
+    let name_bytes = key_name.map(|n| lpcwstr(n));
     let status = unsafe {
         NCryptCreatePersistedKey(
             provider.get(),
             key.release_and_get_addressof(),
             lpcwstr(algorithm).as_ptr(),
-            lpcwstr(key_name).as_ptr(),
+            match name_bytes { Some(ptr) => ptr.as_ptr(), None => null() },
             0,
             0,
         )
