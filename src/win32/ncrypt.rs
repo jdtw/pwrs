@@ -1,10 +1,13 @@
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
 
 use std::ffi::OsStr;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
-use winapi::shared::basetsd::ULONG_PTR;
 use winapi::shared::bcrypt::*;
+
+use winapi::shared::basetsd::ULONG_PTR;
 use winapi::shared::minwindef::ULONG;
 use winapi::um::winnt::LPCWSTR;
 
@@ -25,13 +28,6 @@ const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &'static str =
     "Microsoft Smart Card Key Storage Provider";
 const MS_PLATFORM_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Platform Crypto Provider";
 const MS_NGC_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Passport Key Storage Provider";
-
-pub enum Ksp {
-    Software,
-    SmartCard,
-    Tpm,
-    Ngc,
-}
 
 #[link(name = "ncrypt")]
 extern "stdcall" {
@@ -112,11 +108,18 @@ fn lpcwstr(string: &str) -> Vec<u16> {
     OsStr::new(string).encode_wide().chain(once(0)).collect()
 }
 
+pub enum Ksp {
+    Software,
+    SmartCard,
+    Tpm,
+    Ngc,
+}
+
 pub fn open_storage_provider(ksp: Ksp) -> Result<NCryptHandle, SECURITY_STATUS> {
     let prov_name = match ksp {
         Ksp::Software => MS_KEY_STORAGE_PROVIDER,
         Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
-        Ksp::Tpm => MS_PLATFORM_CRYPTO_PROVIDER,
+        Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
         Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
     };
     let mut prov = NCryptHandle::new();
@@ -128,10 +131,9 @@ pub fn open_storage_provider(ksp: Ksp) -> Result<NCryptHandle, SECURITY_STATUS> 
         )
     };
     if status != 0 {
-        Err(status)
-    } else {
-        Ok(prov)
+        return Err(status);
     }
+    Ok(prov)
 }
 
 pub enum Algorithm {
