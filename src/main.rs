@@ -1,7 +1,7 @@
 extern crate pwrs;
 
-use pwrs::ncrypt;
-use pwrs::ncrypt::{Algorithm, Ksp};
+use pwrs::win32::ncrypt;
+use pwrs::win32::ncrypt::{Algorithm, Ksp};
 
 fn main() {
     let prov = ncrypt::open_storage_provider(Ksp::Software).unwrap();
