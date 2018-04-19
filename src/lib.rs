@@ -1,4 +1,5 @@
 pub mod win32;
+pub mod utils;
 
 extern crate serde;
 extern crate serde_json;
