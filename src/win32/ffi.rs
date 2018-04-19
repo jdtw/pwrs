@@ -55,6 +55,17 @@ extern "stdcall" {
 
     pub fn NCryptDeleteKey(hkey: NCRYPT_KEY_HANDLE, dwFlags: DWORD) -> SECURITY_STATUS;
 
+    pub fn NCryptImportKey(
+        hProvider: NCRYPT_PROV_HANDLE,
+        hImportKey: NCRYPT_KEY_HANDLE,
+        pszBlobType: LPCWSTR,
+        pParameterList: *mut BCryptBufferDesc,
+        phKey: *mut NCRYPT_KEY_HANDLE,
+        pbData: *const u8,
+        cbData: DWORD,
+        dwFlags: DWORD,
+    ) -> SECURITY_STATUS;
+
     pub fn NCryptExportKey(
         hKey: NCRYPT_KEY_HANDLE,
         hExportKey: NCRYPT_KEY_HANDLE,

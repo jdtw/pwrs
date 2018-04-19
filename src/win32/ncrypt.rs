@@ -166,6 +166,26 @@ impl ToString for Blob {
     }
 }
 
+pub fn import_key(prov: &NCryptHandle, blob: Blob, bytes: &[u8]) -> Result<NCryptHandle, SECURITY_STATUS> {
+    unsafe {
+        let mut key = NCryptHandle::new();
+        let status = NCryptImportKey(
+            prov.get(),
+            0,
+            blob.to_string().to_lpcwstr().as_ptr(),
+            null_mut(),
+            key.release_and_get_addressof(),
+            bytes.as_ptr(),
+            bytes.len() as u32,
+            0,
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(key)
+    }
+}
+
 pub fn export_key(key: &NCryptHandle, blob: Blob) -> Result<Vec<u8>, SECURITY_STATUS> {
     unsafe {
         let blob_bytes = blob.to_string().to_lpcwstr();
@@ -299,22 +319,37 @@ mod tests {
     }
 
     #[test]
-    fn test_ecdh_key_agreement() {
+    fn test_import_export() {
         let prov = open_storage_provider(Ksp::Software).unwrap();
+        let key = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+        finalize_key(&key).unwrap();
+        let bytes = export_key(&key, Blob::EccPublic).unwrap();
+        import_key(&prov, Blob::EccPublic, &bytes).unwrap();
+    }
 
-        let key_alice = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+    #[test]
+    fn test_ecdh_key_agreement() {
+        // Create and export Alice's key in software KSP
+        let prov_alice = open_storage_provider(Ksp::Software).unwrap();
+        let key_alice = create_persisted_key(&prov_alice, Algorithm::EcdhP256, None).unwrap();
         finalize_key(&key_alice).unwrap();
-        let _pubkey_alice = export_key(&key_alice, Blob::EccPublic).unwrap();
+        let pubkey_alice = export_key(&key_alice, Blob::EccPublic).unwrap();
 
-        let key_bob = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+        // Create and export Bob's key in software KSP
+        let prov_bob = open_storage_provider(Ksp::Software).unwrap();
+        let key_bob = create_persisted_key(&prov_bob, Algorithm::EcdhP256, None).unwrap();
         finalize_key(&key_bob).unwrap();
-        let _pubkey_bob = export_key(&key_bob, Blob::EccPublic).unwrap();
+        let pubkey_bob = export_key(&key_bob, Blob::EccPublic).unwrap();
 
-        let secret_alice = secret_agreement(&key_alice, &key_bob).unwrap();
-        let derived_alice = derive_key(&secret_alice, Some("alice+bob"));
+        // Import Bob's pub key and derive secret for Alice
+        let pubkey_bob = import_key(&prov_alice, Blob::EccPublic, &pubkey_bob).unwrap();
+        let secret_alice = secret_agreement(&key_alice, &pubkey_bob).unwrap();
+        let derived_alice = derive_key(&secret_alice, Some("alice+bob")).unwrap();
 
-        let secret_bob = secret_agreement(&key_bob, &key_alice).unwrap();
-        let derived_bob = derive_key(&secret_bob, Some("alice+bob"));
+        // Import Alice's pub key and derive secret for Bob
+        let pubkey_alice = import_key(&prov_bob, Blob::EccPublic, &pubkey_alice).unwrap();
+        let secret_bob = secret_agreement(&key_bob, &pubkey_alice).unwrap();
+        let derived_bob = derive_key(&secret_bob, Some("alice+bob")).unwrap();
 
         assert_eq!(derived_alice, derived_bob);
     }
