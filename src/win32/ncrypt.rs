@@ -63,6 +63,13 @@ extern "stdcall" {
         pcbResult: *mut DWORD,
         dwFlags: DWORD,
     ) -> SECURITY_STATUS;
+
+    fn NCryptSecretAgreement(
+        hPrivKey: NCRYPT_KEY_HANDLE,
+        hPubKey: NCRYPT_KEY_HANDLE,
+        phAgreedSecret: *mut NCRYPT_SECRET_HANDLE,
+        dwFlags: DWORD,
+    ) -> SECURITY_STATUS;
 }
 
 pub struct NCryptHandle {
@@ -138,18 +145,18 @@ impl ToString for Ksp {
 }
 
 pub fn open_storage_provider(ksp: Ksp) -> Result<NCryptHandle, SECURITY_STATUS> {
-    let mut prov = NCryptHandle::new();
-    let status = unsafe {
-        NCryptOpenStorageProvider(
+    unsafe {
+        let mut prov = NCryptHandle::new();
+        let status = NCryptOpenStorageProvider(
             prov.release_and_get_addressof(),
             ksp.to_string().to_lpcwstr().as_ptr(),
             0,
-        )
-    };
-    if status != 0 {
-        return Err(status);
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(prov)
     }
-    Ok(prov)
 }
 
 pub enum Algorithm {
@@ -169,10 +176,10 @@ pub fn create_persisted_key(
     algo: Algorithm,
     key_name: Option<&str>,
 ) -> Result<NCryptHandle, SECURITY_STATUS> {
-    let mut key = NCryptHandle::new();
-    let name_bytes = key_name.map(|n| to_lpcwstr(n));
-    let status = unsafe {
-        NCryptCreatePersistedKey(
+    unsafe {
+        let mut key = NCryptHandle::new();
+        let name_bytes = key_name.map(|n| to_lpcwstr(n));
+        let status = NCryptCreatePersistedKey(
             provider.get(),
             key.release_and_get_addressof(),
             algo.to_string().to_lpcwstr().as_ptr(),
@@ -182,28 +189,32 @@ pub fn create_persisted_key(
             },
             0,
             0,
-        )
-    };
-    if status != 0 {
-        return Err(status);
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(key)
     }
-    Ok(key)
 }
 
 pub fn finalize_key(key: &NCryptHandle) -> Result<(), SECURITY_STATUS> {
-    let status = unsafe { NCryptFinalizeKey(key.get(), 0) };
-    if status != 0 {
-        return Err(status);
+    unsafe {
+        let status = NCryptFinalizeKey(key.get(), 0);
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 pub fn delete_key(mut key: NCryptHandle) -> Result<(), SECURITY_STATUS> {
-    let status = unsafe { NCryptDeleteKey(key.release(), 0) };
-    if status != 0 {
-        return Err(status);
+    unsafe {
+        let status = NCryptDeleteKey(key.release(), 0);
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 pub enum Blob {
@@ -255,5 +266,24 @@ pub fn export_key(key: &NCryptHandle, blob: Blob) -> Result<Vec<u8>, SECURITY_ST
 
         output.set_len(byte_count as usize);
         Ok(output)
+    }
+}
+
+pub fn secret_agreement(
+    priv_key: &NCryptHandle,
+    pub_key: &NCryptHandle,
+) -> Result<NCryptHandle, SECURITY_STATUS> {
+    unsafe {
+        let mut secret = NCryptHandle::new();
+        let status = NCryptSecretAgreement(
+            priv_key.get(),
+            pub_key.get(),
+            secret.release_and_get_addressof(),
+            0,
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(secret)
     }
 }

@@ -9,5 +9,6 @@ fn main() {
     ncrypt::finalize_key(&key).unwrap();
     let pubkey = ncrypt::export_key(&key, Blob::EccPublic).unwrap();
     println!("pub: {} {:?}", pubkey.len(), pubkey);
+    let secret = ncrypt::secret_agreement(&key, &key).unwrap();
     //ncrypt::delete_key(key).unwrap();
 }
