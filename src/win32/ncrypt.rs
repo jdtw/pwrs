@@ -2,6 +2,7 @@ use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
 use super::ffi::*;
+use winapi::ctypes::*;
 
 pub struct NCryptHandle {
     handle: NCRYPT_HANDLE,
@@ -202,5 +203,75 @@ pub fn secret_agreement(
             return Err(status);
         }
         Ok(secret)
+    }
+}
+
+pub fn derive_key(secret: &NCryptHandle, label: Option<&str>) -> Result<Vec<u8>, SECURITY_STATUS> {
+    unsafe {
+        let mut sha2 = to_lpcwstr(BCRYPT_SHA256_ALGORITHM);
+
+        let mut buffers = vec![
+            BCryptBuffer {
+                BufferType: KDF_HASH_ALGORITHM,
+                cbBuffer: (sha2.len() * 2) as u32,
+                pvBuffer: sha2.as_mut_ptr() as *mut c_void,
+            },
+        ];
+        let mut label_bytes = label.map(|l| to_lpcwstr(l)).unwrap_or(Vec::new());
+        if label_bytes.len() > 0 {
+            buffers.push(BCryptBuffer {
+                BufferType: KDF_SECRET_PREPEND,
+                cbBuffer: (label_bytes.len() * 2) as u32,
+                pvBuffer: label_bytes.as_mut_ptr() as *mut c_void,
+            });
+        }
+        let mut parameters = BCryptBufferDesc {
+            cBuffers: buffers.len() as u32,
+            ulVersion: BCRYPTBUFFER_VERSION,
+            pBuffers: buffers.as_mut_ptr(),
+        };
+        // SHA256 means 32 output bytes
+        let mut output = Vec::with_capacity(32);
+        let mut byte_count: u32 = 0;
+        let status = NCryptDeriveKey(
+            secret.get(),
+            to_lpcwstr(BCRYPT_KDF_HMAC).as_ptr(),
+            &mut parameters,
+            output.as_mut_ptr(),
+            32,
+            &mut byte_count,
+            KDF_USE_SECRET_AS_HMAC_KEY_FLAG,
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        output.set_len(byte_count as usize);
+        Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ecdh_key_agreement() {
+        let prov = open_storage_provider(Ksp::Software).unwrap();
+
+        let key_alice = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+        finalize_key(&key_alice).unwrap();
+        let _pubkey_alice = export_key(&key_alice, Blob::EccPublic).unwrap();
+
+        let key_bob = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+        finalize_key(&key_bob).unwrap();
+        let _pubkey_bob = export_key(&key_bob, Blob::EccPublic).unwrap();
+
+        let secret_alice = secret_agreement(&key_alice, &key_bob).unwrap();
+        let derived_alice = derive_key(&secret_alice, Some("alice+bob"));
+
+        let secret_bob = secret_agreement(&key_bob, &key_alice).unwrap();
+        let derived_bob = derive_key(&secret_bob, Some("alice+bob"));
+
+        assert_eq!(derived_alice, derived_bob);
     }
 }
