@@ -255,6 +255,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_create_delete_persisted_sw_key() {
+        let prov = open_storage_provider(Ksp::Software).unwrap();
+        let key = create_persisted_key(&prov, Algorithm::EcdhP256, Some("test-key-name")).unwrap();
+        finalize_key(&key).unwrap();
+        delete_key(key).unwrap();
+    }
+
+    #[test]
+    fn test_ephemeral_smart_card_key() {
+        let prov = open_storage_provider(Ksp::SmartCard).unwrap();
+        let key = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
+        finalize_key(&key).unwrap();
+    }
+
+    #[test]
     fn test_ecdh_key_agreement() {
         let prov = open_storage_provider(Ksp::Software).unwrap();
 
