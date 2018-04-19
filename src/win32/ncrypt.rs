@@ -77,6 +77,23 @@ pub fn open_storage_provider(ksp: Ksp) -> Result<NCryptHandle, SECURITY_STATUS> 
     }
 }
 
+pub fn open_key(prov: &NCryptHandle, key_name: &str) -> Result<NCryptHandle, SECURITY_STATUS> {
+    unsafe {
+        let mut key = NCryptHandle::new();
+        let status = NCryptOpenKey(
+            prov.get(),
+            key.release_and_get_addressof(),
+            to_lpcwstr(key_name).as_ptr(),
+            0,
+            0,
+        );
+        if status != 0 {
+            return Err(status);
+        }
+        Ok(key)
+    }
+}
+
 pub enum Algorithm {
     EcdhP256,
 }
@@ -259,6 +276,18 @@ mod tests {
         let prov = open_storage_provider(Ksp::Software).unwrap();
         let key = create_persisted_key(&prov, Algorithm::EcdhP256, Some("test-key-name")).unwrap();
         finalize_key(&key).unwrap();
+        delete_key(key).unwrap();
+    }
+
+    #[test]
+    fn test_open_key() {
+        let prov = open_storage_provider(Ksp::Software).unwrap();
+        {
+            let key =
+                create_persisted_key(&prov, Algorithm::EcdhP256, Some("test-key-name-2")).unwrap();
+            finalize_key(&key).unwrap();
+        }
+        let key = open_key(&prov, "test-key-name-2").unwrap();
         delete_key(key).unwrap();
     }
 

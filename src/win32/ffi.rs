@@ -26,13 +26,21 @@ pub const MS_NGC_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Passport Key St
 
 #[link(name = "ncrypt")]
 extern "stdcall" {
+    pub fn NCryptFreeObject(hObject: NCRYPT_HANDLE) -> SECURITY_STATUS;
+
     pub fn NCryptOpenStorageProvider(
         phProvider: *mut NCRYPT_PROV_HANDLE,
         pszProviderName: LPCWSTR,
         dwFlags: DWORD,
     ) -> SECURITY_STATUS;
 
-    pub fn NCryptFreeObject(hObject: NCRYPT_HANDLE) -> SECURITY_STATUS;
+    pub fn NCryptOpenKey(
+        hProvider: NCRYPT_PROV_HANDLE,
+        phKey: *mut NCRYPT_KEY_HANDLE,
+        pszKeyName: LPCWSTR,
+        dwLegacyKeySpec: DWORD,
+        dwFlags: DWORD,
+    ) -> SECURITY_STATUS;
 
     pub fn NCryptCreatePersistedKey(
         hProvider: NCRYPT_PROV_HANDLE,
