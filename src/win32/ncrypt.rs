@@ -1,76 +1,7 @@
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
-
-use std::ffi::OsStr;
-use std::iter::once;
-use std::os::windows::ffi::OsStrExt;
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
-
-use winapi::shared::basetsd::ULONG_PTR;
-use winapi::shared::minwindef::ULONG;
-use winapi::um::winnt::LPCWSTR;
-
-type DWORD = ULONG;
-type SECURITY_STATUS = i32;
-
-const NCRYPT_SILENT_FLAG: ULONG = 0x00000040;
-const NCRYPT_IGNORE_DEVICE_STATE_FLAG: ULONG = 0x00001000;
-
-type NCRYPT_HANDLE = ULONG_PTR;
-type NCRYPT_PROV_HANDLE = ULONG_PTR;
-type NCRYPT_HASH_HANDLE = ULONG_PTR;
-type NCRYPT_KEY_HANDLE = ULONG_PTR;
-type NCRYPT_SECRET_HANDLE = ULONG_PTR;
-
-const MS_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Software Key Storage Provider";
-const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &'static str =
-    "Microsoft Smart Card Key Storage Provider";
-const MS_PLATFORM_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Platform Crypto Provider";
-const MS_NGC_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Passport Key Storage Provider";
-
-#[link(name = "ncrypt")]
-extern "stdcall" {
-    fn NCryptOpenStorageProvider(
-        phProvider: *mut NCRYPT_PROV_HANDLE,
-        pszProviderName: LPCWSTR,
-        dwFlags: DWORD,
-    ) -> SECURITY_STATUS;
-
-    fn NCryptFreeObject(hObject: NCRYPT_HANDLE) -> SECURITY_STATUS;
-
-    fn NCryptCreatePersistedKey(
-        hProvider: NCRYPT_PROV_HANDLE,
-        phKey: *mut NCRYPT_KEY_HANDLE,
-        pszAlgId: LPCWSTR,
-        pszKeyName: LPCWSTR,
-        dwLegacyKeySpec: DWORD,
-        dwFlags: DWORD,
-    ) -> SECURITY_STATUS;
-
-    fn NCryptFinalizeKey(hKey: NCRYPT_KEY_HANDLE, dwFlags: DWORD) -> SECURITY_STATUS;
-
-    fn NCryptDeleteKey(hkey: NCRYPT_KEY_HANDLE, dwFlags: DWORD) -> SECURITY_STATUS;
-
-    fn NCryptExportKey(
-        hKey: NCRYPT_KEY_HANDLE,
-        hExportKey: NCRYPT_KEY_HANDLE,
-        pszBlobType: LPCWSTR,
-        pParameterList: *mut BCryptBufferDesc,
-        pOutput: *mut u8,
-        cbOutput: DWORD,
-        pcbResult: *mut DWORD,
-        dwFlags: DWORD,
-    ) -> SECURITY_STATUS;
-
-    fn NCryptSecretAgreement(
-        hPrivKey: NCRYPT_KEY_HANDLE,
-        hPubKey: NCRYPT_KEY_HANDLE,
-        phAgreedSecret: *mut NCRYPT_SECRET_HANDLE,
-        dwFlags: DWORD,
-    ) -> SECURITY_STATUS;
-}
+use super::ffi::*;
 
 pub struct NCryptHandle {
     handle: NCRYPT_HANDLE,
@@ -112,20 +43,6 @@ impl Drop for NCryptHandle {
     }
 }
 
-pub trait ToLpcwstr {
-    fn to_lpcwstr(&self) -> Vec<u16>;
-}
-
-fn to_lpcwstr(string: &str) -> Vec<u16> {
-    OsStr::new(string).encode_wide().chain(once(0)).collect()
-}
-
-impl ToLpcwstr for String {
-    fn to_lpcwstr(&self) -> Vec<u16> {
-        to_lpcwstr(self)
-    }
-}
-
 pub enum Ksp {
     Software,
     SmartCard,
@@ -136,10 +53,10 @@ pub enum Ksp {
 impl ToString for Ksp {
     fn to_string(&self) -> String {
         String::from(match self {
-            Ksp::Software => MS_KEY_STORAGE_PROVIDER,
-            Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
-            Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
-            Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
+            &Ksp::Software => MS_KEY_STORAGE_PROVIDER,
+            &Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
+            &Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
+            &Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
         })
     }
 }
@@ -166,7 +83,7 @@ pub enum Algorithm {
 impl ToString for Algorithm {
     fn to_string(&self) -> String {
         String::from(match self {
-            Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
+            &Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
         })
     }
 }
@@ -225,8 +142,8 @@ pub enum Blob {
 impl ToString for Blob {
     fn to_string(&self) -> String {
         String::from(match self {
-            Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
-            Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
+            &Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
+            &Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
         })
     }
 }
