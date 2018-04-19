@@ -166,7 +166,11 @@ impl ToString for Blob {
     }
 }
 
-pub fn import_key(prov: &NCryptHandle, blob: Blob, bytes: &[u8]) -> Result<NCryptHandle, SECURITY_STATUS> {
+pub fn import_key(
+    prov: &NCryptHandle,
+    blob: Blob,
+    bytes: &[u8],
+) -> Result<NCryptHandle, SECURITY_STATUS> {
     unsafe {
         let mut key = NCryptHandle::new();
         let status = NCryptImportKey(
