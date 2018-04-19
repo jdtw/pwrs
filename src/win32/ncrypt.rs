@@ -5,6 +5,7 @@ use std::ffi::OsStr;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::{null, null_mut};
+use std::string::ToString;
 use winapi::shared::bcrypt::*;
 
 use winapi::shared::basetsd::ULONG_PTR;
@@ -104,8 +105,18 @@ impl Drop for NCryptHandle {
     }
 }
 
-fn lpcwstr(string: &str) -> Vec<u16> {
+pub trait ToLpcwstr {
+    fn to_lpcwstr(&self) -> Vec<u16>;
+}
+
+fn to_lpcwstr(string: &str) -> Vec<u16> {
     OsStr::new(string).encode_wide().chain(once(0)).collect()
+}
+
+impl ToLpcwstr for String {
+    fn to_lpcwstr(&self) -> Vec<u16> {
+        to_lpcwstr(self)
+    }
 }
 
 pub enum Ksp {
@@ -115,18 +126,23 @@ pub enum Ksp {
     Ngc,
 }
 
+impl ToString for Ksp {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            Ksp::Software => MS_KEY_STORAGE_PROVIDER,
+            Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
+            Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
+            Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
+        })
+    }
+}
+
 pub fn open_storage_provider(ksp: Ksp) -> Result<NCryptHandle, SECURITY_STATUS> {
-    let prov_name = match ksp {
-        Ksp::Software => MS_KEY_STORAGE_PROVIDER,
-        Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
-        Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
-        Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
-    };
     let mut prov = NCryptHandle::new();
     let status = unsafe {
         NCryptOpenStorageProvider(
             prov.release_and_get_addressof(),
-            lpcwstr(prov_name).as_ptr(),
+            ksp.to_string().to_lpcwstr().as_ptr(),
             0,
         )
     };
@@ -140,22 +156,30 @@ pub enum Algorithm {
     EcdhP256,
 }
 
+impl ToString for Algorithm {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
+        })
+    }
+}
+
 pub fn create_persisted_key(
     provider: &NCryptHandle,
     algo: Algorithm,
     key_name: Option<&str>,
 ) -> Result<NCryptHandle, SECURITY_STATUS> {
-    let algorithm = match algo {
-        Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
-    };
     let mut key = NCryptHandle::new();
-    let name_bytes = key_name.map(|n| lpcwstr(n));
+    let name_bytes = key_name.map(|n| to_lpcwstr(n));
     let status = unsafe {
         NCryptCreatePersistedKey(
             provider.get(),
             key.release_and_get_addressof(),
-            lpcwstr(algorithm).as_ptr(),
-            match name_bytes { Some(ptr) => ptr.as_ptr(), None => null() },
+            algo.to_string().to_lpcwstr().as_ptr(),
+            match name_bytes {
+                Some(ptr) => ptr.as_ptr(),
+                None => null(),
+            },
             0,
             0,
         )
@@ -182,13 +206,28 @@ pub fn delete_key(mut key: NCryptHandle) -> Result<(), SECURITY_STATUS> {
     Ok(())
 }
 
-pub fn export_key(key: &NCryptHandle) -> Result<Vec<u8>, SECURITY_STATUS> {
+pub enum Blob {
+    EccPublic,
+    EccPrivate,
+}
+
+impl ToString for Blob {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
+            Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
+        })
+    }
+}
+
+pub fn export_key(key: &NCryptHandle, blob: Blob) -> Result<Vec<u8>, SECURITY_STATUS> {
     unsafe {
+        let blob_bytes = blob.to_string().to_lpcwstr();
         let mut byte_count: u32 = 0;
         let status = NCryptExportKey(
             key.get(),
             0,
-            lpcwstr(BCRYPT_ECCPUBLIC_BLOB).as_ptr(),
+            blob_bytes.as_ptr(),
             null_mut(),
             null_mut(),
             0,
@@ -203,8 +242,7 @@ pub fn export_key(key: &NCryptHandle) -> Result<Vec<u8>, SECURITY_STATUS> {
         let status = NCryptExportKey(
             key.get(),
             0,
-            // TODO: Create an enum
-            lpcwstr(BCRYPT_ECCPUBLIC_BLOB).as_ptr(),
+            blob_bytes.as_ptr(),
             null_mut(),
             output.as_mut_ptr(),
             byte_count,
