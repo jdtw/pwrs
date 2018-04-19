@@ -321,10 +321,16 @@ mod tests {
     #[test]
     fn test_import_export() {
         let prov = open_storage_provider(Ksp::Software).unwrap();
+        // TODO: Set key archival flag
         let key = create_persisted_key(&prov, Algorithm::EcdhP256, None).unwrap();
         finalize_key(&key).unwrap();
+
         let bytes = export_key(&key, Blob::EccPublic).unwrap();
         import_key(&prov, Blob::EccPublic, &bytes).unwrap();
+
+        // TODO: Add support for key archival, and make this pass
+        let bytes = export_key(&key, Blob::EccPrivate).unwrap();
+        import_key(&prov, Blob::EccPrivate, &bytes).unwrap();
     }
 
     #[test]
