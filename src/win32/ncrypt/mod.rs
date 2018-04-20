@@ -1,8 +1,10 @@
+mod ffi;
+
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
-use super::ffi::*;
 use winapi::ctypes::*;
+use self::ffi::*;
 
 pub struct NCryptHandle {
     handle: NCRYPT_HANDLE,
