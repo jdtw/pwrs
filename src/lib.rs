@@ -18,6 +18,7 @@ pub enum PwrsError {
     JsonError(serde_json::Error),
     IoError(io::Error),
     FromUtf8Error(std::string::FromUtf8Error),
+    Win32Error(win32::Error),
 }
 
 impl From<io::Error> for PwrsError {
@@ -35,6 +36,12 @@ impl From<serde_json::Error> for PwrsError {
 impl From<std::string::FromUtf8Error> for PwrsError {
     fn from(error: std::string::FromUtf8Error) -> Self {
         PwrsError::FromUtf8Error(error)
+    }
+}
+
+impl From<win32::Error> for PwrsError {
+    fn from(error: win32::Error) -> Self {
+        PwrsError::Win32Error(error)
     }
 }
 
@@ -67,7 +74,7 @@ impl Entry {
     }
 
     pub fn user_name(&self) -> &str {
-        &self.user_name[..]
+        &self.user_name
     }
 
     pub fn decrypt<T: Protector>(&self, protector: &T) -> Result<String, PwrsError> {
