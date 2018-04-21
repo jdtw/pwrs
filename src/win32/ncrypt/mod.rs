@@ -2,51 +2,28 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
+use win32::handle;
 
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
 use winapi::ctypes::*;
 
-pub struct NCryptHandle {
-    handle: NCRYPT_HANDLE,
+impl handle::InvalidValue for NCRYPT_HANDLE {
+    fn invalid_value() -> NCRYPT_HANDLE {
+        0
+    }
 }
 
-impl NCryptHandle {
-    fn new() -> NCryptHandle {
-        NCryptHandle { handle: 0 }
-    }
-
-    fn release_and_get_addressof(&mut self) -> *mut NCRYPT_HANDLE {
-        self.reset();
-        &mut self.handle
-    }
-
-    fn get(&self) -> NCRYPT_HANDLE {
-        self.handle
-    }
-
-    fn reset(&mut self) {
+impl handle::Close for NCRYPT_HANDLE {
+    fn close(&self) {
         unsafe {
-            if self.handle != 0 {
-                NCryptFreeObject(self.handle);
-                self.handle = 0;
-            }
+            NCryptFreeObject(*self);
         }
     }
-
-    fn release(&mut self) -> NCRYPT_HANDLE {
-        let tmp = self.handle;
-        self.handle = 0;
-        tmp
-    }
 }
 
-impl Drop for NCryptHandle {
-    fn drop(&mut self) {
-        self.reset();
-    }
-}
+pub type NCryptHandle = handle::Win32Handle<NCRYPT_HANDLE>;
 
 pub enum Ksp {
     Software,
@@ -70,7 +47,7 @@ pub fn open_storage_provider(ksp: Ksp) -> win32::Result<NCryptHandle> {
     unsafe {
         let mut prov = NCryptHandle::new();
         let status = NCryptOpenStorageProvider(
-            prov.release_and_get_addressof(),
+            prov.as_out_param(),
             ksp.to_string().to_lpcwstr().as_ptr(),
             0,
         );
@@ -83,7 +60,7 @@ pub fn open_key(prov: &NCryptHandle, key_name: &str) -> win32::Result<NCryptHand
         let mut key = NCryptHandle::new();
         let status = NCryptOpenKey(
             prov.get(),
-            key.release_and_get_addressof(),
+            key.as_out_param(),
             to_lpcwstr(key_name).as_ptr(),
             0,
             0,
@@ -114,7 +91,7 @@ pub fn create_persisted_key(
         let name_bytes = key_name.map(|n| to_lpcwstr(n));
         let status = NCryptCreatePersistedKey(
             provider.get(),
-            key.release_and_get_addressof(),
+            key.as_out_param(),
             algo.to_string().to_lpcwstr().as_ptr(),
             match name_bytes {
                 Some(ptr) => ptr.as_ptr(),
@@ -163,7 +140,7 @@ pub fn import_key(prov: &NCryptHandle, blob: Blob, bytes: &[u8]) -> win32::Resul
             0,
             blob.to_string().to_lpcwstr().as_ptr(),
             null_mut(),
-            key.release_and_get_addressof(),
+            key.as_out_param(),
             bytes.as_ptr(),
             bytes.len() as u32,
             0,
@@ -216,12 +193,7 @@ pub fn secret_agreement(
 ) -> win32::Result<NCryptHandle> {
     unsafe {
         let mut secret = NCryptHandle::new();
-        let status = NCryptSecretAgreement(
-            priv_key.get(),
-            pub_key.get(),
-            secret.release_and_get_addressof(),
-            0,
-        );
+        let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.as_out_param(), 0);
         win32::Error::result("NCryptSecretAgreement", status, secret)
     }
 }
