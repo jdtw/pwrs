@@ -1,14 +1,11 @@
-pub trait InvalidValue {
+pub trait Handle {
     fn invalid_value() -> Self;
-}
-
-pub trait Close {
     fn close(&self);
 }
 
-pub struct Win32Handle<T: Close + InvalidValue + Copy + PartialEq>(T);
+pub struct Win32Handle<T: Handle + Copy + PartialEq>(T);
 
-impl<T: Close + InvalidValue + Copy + PartialEq> Win32Handle<T> {
+impl<T: Handle + Copy + PartialEq> Win32Handle<T> {
     pub fn new() -> Win32Handle<T> {
         Win32Handle(T::invalid_value())
     }
@@ -36,7 +33,7 @@ impl<T: Close + InvalidValue + Copy + PartialEq> Win32Handle<T> {
     }
 }
 
-impl<T: Close + InvalidValue + Copy + PartialEq> Drop for Win32Handle<T> {
+impl<T: Handle + Copy + PartialEq> Drop for Win32Handle<T> {
     fn drop(&mut self) {
         self.reset();
     }

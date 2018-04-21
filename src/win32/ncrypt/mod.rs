@@ -7,15 +7,13 @@ use win32::handle;
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
-use winapi::ctypes::*;
+use winapi::ctypes::c_void;
 
-impl handle::InvalidValue for NCRYPT_HANDLE {
+impl handle::Handle for NCRYPT_HANDLE {
     fn invalid_value() -> NCRYPT_HANDLE {
         0
     }
-}
 
-impl handle::Close for NCRYPT_HANDLE {
     fn close(&self) {
         unsafe {
             NCryptFreeObject(*self);

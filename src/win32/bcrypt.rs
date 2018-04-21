@@ -28,13 +28,11 @@ pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
     }
 }
 
-impl handle::InvalidValue for BCRYPT_HASH_HANDLE {
+impl handle::Handle for BCRYPT_HASH_HANDLE {
     fn invalid_value() -> BCRYPT_HASH_HANDLE {
         null_mut()
     }
-}
 
-impl handle::Close for BCRYPT_HASH_HANDLE {
     fn close(&self) {
         unsafe {
             BCryptDestroyHash(*self);
