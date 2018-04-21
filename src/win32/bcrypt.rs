@@ -11,6 +11,23 @@ use std::ptr::{null, null_mut};
 // to pass into the BCrypt FFI layer.
 use std::mem::transmute;
 
+pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
+    unsafe {
+        let mut random = Vec::with_capacity(size);
+        let status = BCryptGenRandom(
+            null_mut(),
+            random.as_mut_ptr(),
+            size as u32,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptGenRandom", status));
+        }
+        random.set_len(size);
+        Ok(random)
+    }
+}
+
 impl handle::InvalidValue for BCRYPT_HASH_HANDLE {
     fn invalid_value() -> BCRYPT_HASH_HANDLE {
         null_mut()
@@ -117,6 +134,13 @@ pub fn hmac_sha256(secret: &[u8], data: &[u8]) -> win32::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_gen_random() {
+        assert!(gen_random(0).unwrap().len() == 0);
+        assert!(gen_random(13).unwrap().len() == 13);
+        assert!(gen_random(32).unwrap() != gen_random(32).unwrap());
+    }
 
     #[test]
     fn test_hash_data_sha1() {
