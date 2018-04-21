@@ -3,6 +3,12 @@ use win32;
 use win32::handle;
 use win32::handle::Win32Handle;
 use std::ptr::{null, null_mut};
+
+// The BCrypt functions don't take const input
+// parameters (even though they're SAL annotated
+// as read-only). The safe interface takes const
+// references and transmutes them to mutable ones
+// to pass into the BCrypt FFI layer.
 use std::mem::transmute;
 
 impl handle::InvalidValue for BCRYPT_HASH_HANDLE {
