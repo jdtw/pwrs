@@ -4,13 +4,6 @@ use win32;
 use win32::{CloseHandle, Handle};
 use std::ptr::{null, null_mut};
 
-// The BCrypt functions don't take const input
-// parameters (even though they're SAL annotated
-// as read-only). The safe interface takes const
-// references and transmutes them to mutable ones
-// to pass into the BCrypt FFI layer.
-use std::mem::transmute;
-
 pub enum HandleType {
     Hash,
     SymmetricKey,
@@ -54,7 +47,7 @@ pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> win32::Result<Handl
             key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
             null_mut(),
             0,
-            transmute::<*const u8, *mut u8>(secret.as_ptr()),
+            secret.as_ptr() as *const u8 as *mut u8,
             secret.len() as u32,
             0,
         );
@@ -112,6 +105,92 @@ pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
     }
 }
 
+pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> win32::Result<Vec<u8>> {
+    unsafe {
+        let mut iv: Vec<u8> = iv.iter().cloned().collect();
+        let mut result_byte_count = 0;
+
+        let status = BCryptEncrypt(
+            key.get() as BCRYPT_HANDLE,
+            data.as_ptr() as *const u8 as *mut u8,
+            data.len() as u32,
+            null_mut(),
+            iv.as_mut_ptr(),
+            iv.len() as u32,
+            null_mut(),
+            0,
+            &mut result_byte_count,
+            BCRYPT_BLOCK_PADDING,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptEncrypt", status));
+        }
+
+        let mut output = Vec::with_capacity(result_byte_count as usize);
+        let status = BCryptEncrypt(
+            key.get() as BCRYPT_HANDLE,
+            data.as_ptr() as *const u8 as *mut u8,
+            data.len() as u32,
+            null_mut(),
+            iv.as_mut_ptr(),
+            iv.len() as u32,
+            output.as_mut_ptr(),
+            result_byte_count,
+            &mut result_byte_count,
+            BCRYPT_BLOCK_PADDING,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptEncrypt", status));
+        }
+
+        output.set_len(result_byte_count as usize);
+        Ok(output)
+    }
+}
+
+pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> win32::Result<Vec<u8>> {
+    unsafe {
+        let mut iv: Vec<u8> = iv.iter().cloned().collect();
+        let mut result_byte_count = 0;
+
+        let status = BCryptDecrypt(
+            key.get() as BCRYPT_HANDLE,
+            data.as_ptr() as *const u8 as *mut u8,
+            data.len() as u32,
+            null_mut(),
+            iv.as_mut_ptr(),
+            iv.len() as u32,
+            null_mut(),
+            0,
+            &mut result_byte_count,
+            BCRYPT_BLOCK_PADDING,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptDecrypt", status));
+        }
+
+        let mut output = Vec::with_capacity(result_byte_count as usize);
+        let status = BCryptDecrypt(
+            key.get() as BCRYPT_HANDLE,
+            data.as_ptr() as *const u8 as *mut u8,
+            data.len() as u32,
+            null_mut(),
+            iv.as_mut_ptr(),
+            iv.len() as u32,
+            output.as_mut_ptr(),
+            result_byte_count,
+            &mut result_byte_count,
+            BCRYPT_BLOCK_PADDING,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptDecrypt", status));
+        }
+
+        output.set_len(result_byte_count as usize);
+        Ok(output)
+    }
+}
+
 pub enum HashAlg<'a> {
     Sha1,
     Sha256,
@@ -142,7 +221,7 @@ impl<'a> Hash<'a> {
                 hash.handle.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
                 null_mut(),
                 0,
-                transmute::<*const u8, *mut u8>(secret),
+                secret as *const u8 as *mut u8,
                 secret_len as u32,
                 0,
             );
@@ -154,7 +233,7 @@ impl<'a> Hash<'a> {
         unsafe {
             let status = BCryptHashData(
                 self.handle.get() as BCRYPT_HANDLE,
-                transmute::<*const u8, *mut u8>(data.as_ptr()),
+                data.as_ptr() as *const u8 as *mut u8,
                 data.len() as u32,
                 0,
             );
@@ -231,6 +310,18 @@ mod tests {
         let secret = gen_random(32).unwrap();
         generate_symmetric_key(SymAlg::Aes256Cbc, &secret).unwrap();
         generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
+    }
+
+    #[test]
+    fn test_encrypt_decrypt() {
+        let plaintext = "SuperSecretP@ssw0rd!";
+        let secret = gen_random(32).unwrap();
+        let iv: [u8; 32] = [0; 32];
+
+        let key = generate_symmetric_key(SymAlg::Aes256Cbc, &secret).unwrap();
+        let encrypted = encrypt_data(&key, &iv, plaintext.as_bytes()).unwrap();
+        let decrypted = decrypt_data(&key, &iv, &encrypted).unwrap();
+        assert_eq!(plaintext, String::from_utf8(decrypted).unwrap());
     }
 
     #[test]
