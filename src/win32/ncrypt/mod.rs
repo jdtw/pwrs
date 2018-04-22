@@ -82,14 +82,15 @@ pub fn create_persisted_key(
     unsafe {
         let mut key = Handle::new();
         let name_bytes = key_name.map(|n| to_lpcwstr(n));
+        let name_ptr = match &name_bytes {
+            &Some(ref bytes) => bytes.as_ptr(),
+            &None => null(),
+        };
         let status = NCryptCreatePersistedKey(
             provider.get(),
             key.as_out_param(),
             algo.to_string().to_lpcwstr().as_ptr(),
-            match &name_bytes {
-                &Some(ref ptr) => ptr.as_ptr(),
-                &None => null(),
-            },
+            name_ptr,
             0,
             0,
         );
@@ -206,12 +207,16 @@ pub fn derive_key(secret: &Handle<Object>, label: Option<&str>) -> win32::Result
                 pvBuffer: sha2.as_mut_ptr() as *mut c_void,
             },
         ];
-        let mut label_bytes = label.map(|l| to_lpcwstr(l)).unwrap_or(Vec::new());
-        if label_bytes.len() > 0 {
+        let label_bytes = label.map(|l| to_lpcwstr(l));
+        let (label_ptr, label_len) = match &label_bytes {
+            &Some(ref bytes) => (bytes.as_ptr(), bytes.len() * 2),
+            &None => (null(), 0),
+        };
+        if label_len > 0 {
             buffers.push(BCryptBuffer {
                 BufferType: KDF_SECRET_PREPEND,
-                cbBuffer: (label_bytes.len() * 2) as u32,
-                pvBuffer: label_bytes.as_mut_ptr() as *mut c_void,
+                cbBuffer: label_len as u32,
+                pvBuffer: label_ptr as *mut c_void,
             });
         }
         let mut parameters = BCryptBufferDesc {

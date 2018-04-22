@@ -33,6 +33,34 @@ impl CloseHandle for Key {
     }
 }
 
+pub enum SymAlg {
+    Sp800108CtrHmacKdf,
+    Aes256Cbc,
+}
+
+pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> win32::Result<Handle<Key>> {
+    let (alg_handle, expected_len) = match alg {
+        SymAlg::Sp800108CtrHmacKdf => (BCRYPT_SP800108_CTR_HMAC_ALG_HANDLE, 32),
+        SymAlg::Aes256Cbc => (BCRYPT_AES_CBC_ALG_HANDLE, 32),
+    };
+    if secret.len() != expected_len {
+        panic!("Unexpected secret length")
+    }
+    unsafe {
+        let mut key = Handle::new();
+        let status = BCryptGenerateSymmetricKey(
+            alg_handle,
+            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            null_mut(),
+            0,
+            transmute::<*const u8, *mut u8>(secret.as_ptr()),
+            secret.len() as u32,
+            0,
+        );
+        win32::Error::result("BCryptGenerateSymmetricKey", status, key)
+    }
+}
+
 pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
     unsafe {
         let mut random = Vec::with_capacity(size);
@@ -150,6 +178,13 @@ mod tests {
         assert!(gen_random(0).unwrap().len() == 0);
         assert!(gen_random(13).unwrap().len() == 13);
         assert!(gen_random(32).unwrap() != gen_random(32).unwrap());
+    }
+
+    #[test]
+    fn test_generate_symmetric_key() {
+        let secret = gen_random(32).unwrap();
+        generate_symmetric_key(SymAlg::Aes256Cbc, &secret).unwrap();
+        generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
     }
 
     #[test]
