@@ -1,39 +1,37 @@
-pub trait Handle {
-    fn invalid_value() -> Self;
-    fn close(&self);
+pub struct Handle {
+    handle: usize,
+    close: Box<Fn(&mut usize)>,
 }
 
-pub struct Win32Handle<T: Handle + Copy + PartialEq>(T);
-
-impl<T: Handle + Copy + PartialEq> Win32Handle<T> {
-    pub fn new() -> Win32Handle<T> {
-        Win32Handle(T::invalid_value())
+impl Handle {
+    pub fn new(close: Box<Fn(&mut usize)>) -> Handle {
+        Handle { handle: 0, close }
     }
 
-    pub fn as_out_param(&mut self) -> *mut T {
+    pub fn as_out_param(&mut self) -> &mut usize {
         self.reset();
-        &mut self.0
+        &mut self.handle
     }
 
-    pub fn get(&self) -> T {
-        self.0
+    pub fn get(&self) -> usize {
+        self.handle
     }
 
     pub fn reset(&mut self) {
-        if self.0 != T::invalid_value() {
-            self.0.close();
-            self.0 = T::invalid_value();
+        if self.handle != 0 {
+            (self.close)(&mut self.handle);
+            self.handle = 0;
         }
     }
 
-    pub fn release(&mut self) -> T {
-        let handle = self.0;
-        self.0 = T::invalid_value();
+    pub fn release(&mut self) -> usize {
+        let handle = self.handle;
+        self.handle = 0;
         handle
     }
 }
 
-impl<T: Handle + Copy + PartialEq> Drop for Win32Handle<T> {
+impl Drop for Handle {
     fn drop(&mut self) {
         self.reset();
     }

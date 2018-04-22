@@ -1,7 +1,6 @@
 use winapi::shared::bcrypt::*;
 use win32;
-use win32::handle;
-use win32::handle::Win32Handle;
+use win32::Handle;
 use std::ptr::{null, null_mut};
 
 // The BCrypt functions don't take const input
@@ -10,6 +9,22 @@ use std::ptr::{null, null_mut};
 // references and transmutes them to mutable ones
 // to pass into the BCrypt FFI layer.
 use std::mem::transmute;
+
+pub enum HandleType {
+    Hash,
+    SymmetricKey,
+}
+
+fn new_handle(handle_type: HandleType) -> Handle {
+    Handle::new(match handle_type {
+        HandleType::Hash => Box::new(|handle| unsafe {
+            BCryptDestroyHash(*handle as BCRYPT_HANDLE);
+        }),
+        HandleType::SymmetricKey => Box::new(|handle| unsafe {
+            BCryptDestroyKey(*handle as BCRYPT_HANDLE);
+        }),
+    })
+}
 
 pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
     unsafe {
@@ -28,36 +43,22 @@ pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
     }
 }
 
-impl handle::Handle for BCRYPT_HASH_HANDLE {
-    fn invalid_value() -> BCRYPT_HASH_HANDLE {
-        null_mut()
-    }
-
-    fn close(&self) {
-        unsafe {
-            BCryptDestroyHash(*self);
-        }
-    }
-}
-
-pub type BCryptHashHandle = Win32Handle<BCRYPT_HASH_HANDLE>;
-
 pub enum HashAlg<'a> {
     Sha1,
     Sha256,
     HmacSha256(&'a [u8]),
 }
 
-pub struct BCryptHash<'a> {
-    handle: BCryptHashHandle,
+pub struct Hash<'a> {
+    handle: Handle,
     alg: HashAlg<'a>,
 }
 
-impl<'a> BCryptHash<'a> {
-    pub fn new(alg: HashAlg) -> win32::Result<BCryptHash> {
+impl<'a> Hash<'a> {
+    pub fn new(alg: HashAlg) -> win32::Result<Hash> {
         unsafe {
-            let mut hash = BCryptHash {
-                handle: Win32Handle::new(),
+            let mut hash = Hash {
+                handle: new_handle(HandleType::Hash),
                 alg,
             };
             let (alg_handle, secret, secret_len) = match &hash.alg {
@@ -69,7 +70,7 @@ impl<'a> BCryptHash<'a> {
             };
             let status = BCryptCreateHash(
                 alg_handle,
-                hash.handle.as_out_param(),
+                hash.handle.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
                 null_mut(),
                 0,
                 transmute::<*const u8, *mut u8>(secret),
@@ -83,7 +84,7 @@ impl<'a> BCryptHash<'a> {
     pub fn hash_data(&self, data: &[u8]) -> win32::Result<()> {
         unsafe {
             let status = BCryptHashData(
-                self.handle.get(),
+                self.handle.get() as BCRYPT_HANDLE,
                 transmute::<*const u8, *mut u8>(data.as_ptr()),
                 data.len() as u32,
                 0,
@@ -100,8 +101,12 @@ impl<'a> BCryptHash<'a> {
                 &HashAlg::HmacSha256(_) => 32,
             };
             let mut output = Vec::with_capacity(output_len);
-            let status =
-                BCryptFinishHash(self.handle.get(), output.as_mut_ptr(), output_len as u32, 0);
+            let status = BCryptFinishHash(
+                self.handle.get() as BCRYPT_HANDLE,
+                output.as_mut_ptr(),
+                output_len as u32,
+                0,
+            );
             if status != 0 {
                 return Err(win32::Error::new("BCryptFinishHash", status));
             }
@@ -112,7 +117,7 @@ impl<'a> BCryptHash<'a> {
 }
 
 pub fn hash_data(alg: HashAlg, data: &[u8]) -> win32::Result<Vec<u8>> {
-    let hash = BCryptHash::new(alg)?;
+    let hash = Hash::new(alg)?;
     hash.hash_data(&data)?;
     hash.finish_hash()
 }
@@ -144,7 +149,7 @@ mod tests {
     fn test_hash_data_sha1() {
         let input: [u8; 5] = [1, 2, 3, 4, 5];
 
-        let hash = BCryptHash::new(HashAlg::Sha1).unwrap();
+        let hash = Hash::new(HashAlg::Sha1).unwrap();
         hash.hash_data(&input).unwrap();
         hash.hash_data(&input).unwrap();
         let output1 = hash.finish_hash().unwrap();
@@ -164,7 +169,7 @@ mod tests {
     fn test_hash_data_sha2() {
         let input: [u8; 5] = [1, 2, 3, 4, 5];
 
-        let hash = BCryptHash::new(HashAlg::Sha256).unwrap();
+        let hash = Hash::new(HashAlg::Sha256).unwrap();
         hash.hash_data(&input).unwrap();
         hash.hash_data(&input).unwrap();
         let output1 = hash.finish_hash().unwrap();
@@ -185,7 +190,7 @@ mod tests {
         let input: [u8; 5] = [1, 2, 3, 4, 5];
         let secret: [u8; 32] = [0; 32];
 
-        let hash = BCryptHash::new(HashAlg::HmacSha256(&secret)).unwrap();
+        let hash = Hash::new(HashAlg::HmacSha256(&secret)).unwrap();
         hash.hash_data(&input).unwrap();
         hash.hash_data(&input).unwrap();
         let output1 = hash.finish_hash().unwrap();

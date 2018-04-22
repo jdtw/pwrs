@@ -2,26 +2,18 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
-use win32::handle;
+use win32::Handle;
 
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use winapi::shared::bcrypt::*;
 use winapi::ctypes::c_void;
 
-impl handle::Handle for NCRYPT_HANDLE {
-    fn invalid_value() -> NCRYPT_HANDLE {
-        0
-    }
-
-    fn close(&self) {
-        unsafe {
-            NCryptFreeObject(*self);
-        }
-    }
+fn new_handle() -> Handle {
+    Handle::new(Box::new(|handle| unsafe {
+        NCryptFreeObject(*handle);
+    }))
 }
-
-pub type NCryptHandle = handle::Win32Handle<NCRYPT_HANDLE>;
 
 pub enum Ksp {
     Software,
@@ -41,9 +33,9 @@ impl ToString for Ksp {
     }
 }
 
-pub fn open_storage_provider(ksp: Ksp) -> win32::Result<NCryptHandle> {
+pub fn open_storage_provider(ksp: Ksp) -> win32::Result<Handle> {
     unsafe {
-        let mut prov = NCryptHandle::new();
+        let mut prov = new_handle();
         let status = NCryptOpenStorageProvider(
             prov.as_out_param(),
             ksp.to_string().to_lpcwstr().as_ptr(),
@@ -53,9 +45,9 @@ pub fn open_storage_provider(ksp: Ksp) -> win32::Result<NCryptHandle> {
     }
 }
 
-pub fn open_key(prov: &NCryptHandle, key_name: &str) -> win32::Result<NCryptHandle> {
+pub fn open_key(prov: &Handle, key_name: &str) -> win32::Result<Handle> {
     unsafe {
-        let mut key = NCryptHandle::new();
+        let mut key = new_handle();
         let status = NCryptOpenKey(
             prov.get(),
             key.as_out_param(),
@@ -80,12 +72,12 @@ impl ToString for Algorithm {
 }
 
 pub fn create_persisted_key(
-    provider: &NCryptHandle,
+    provider: &Handle,
     algo: Algorithm,
     key_name: Option<&str>,
-) -> win32::Result<NCryptHandle> {
+) -> win32::Result<Handle> {
     unsafe {
-        let mut key = NCryptHandle::new();
+        let mut key = new_handle();
         let name_bytes = key_name.map(|n| to_lpcwstr(n));
         let status = NCryptCreatePersistedKey(
             provider.get(),
@@ -102,14 +94,14 @@ pub fn create_persisted_key(
     }
 }
 
-pub fn finalize_key(key: &NCryptHandle) -> win32::Result<()> {
+pub fn finalize_key(key: &Handle) -> win32::Result<()> {
     unsafe {
         let status = NCryptFinalizeKey(key.get(), 0);
         win32::Error::result("NCryptFinalizeKey", status, ())
     }
 }
 
-pub fn delete_key(mut key: NCryptHandle) -> win32::Result<()> {
+pub fn delete_key(mut key: Handle) -> win32::Result<()> {
     unsafe {
         let status = NCryptDeleteKey(key.release(), 0);
         win32::Error::result("NCryptFinalizeKey", status, ())
@@ -130,9 +122,9 @@ impl ToString for Blob {
     }
 }
 
-pub fn import_key(prov: &NCryptHandle, blob: Blob, bytes: &[u8]) -> win32::Result<NCryptHandle> {
+pub fn import_key(prov: &Handle, blob: Blob, bytes: &[u8]) -> win32::Result<Handle> {
     unsafe {
-        let mut key = NCryptHandle::new();
+        let mut key = new_handle();
         let status = NCryptImportKey(
             prov.get(),
             0,
@@ -147,7 +139,7 @@ pub fn import_key(prov: &NCryptHandle, blob: Blob, bytes: &[u8]) -> win32::Resul
     }
 }
 
-pub fn export_key(key: &NCryptHandle, blob: Blob) -> win32::Result<Vec<u8>> {
+pub fn export_key(key: &Handle, blob: Blob) -> win32::Result<Vec<u8>> {
     unsafe {
         let blob_bytes = blob.to_string().to_lpcwstr();
         let mut byte_count: u32 = 0;
@@ -185,18 +177,15 @@ pub fn export_key(key: &NCryptHandle, blob: Blob) -> win32::Result<Vec<u8>> {
     }
 }
 
-pub fn secret_agreement(
-    priv_key: &NCryptHandle,
-    pub_key: &NCryptHandle,
-) -> win32::Result<NCryptHandle> {
+pub fn secret_agreement(priv_key: &Handle, pub_key: &Handle) -> win32::Result<Handle> {
     unsafe {
-        let mut secret = NCryptHandle::new();
+        let mut secret = new_handle();
         let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.as_out_param(), 0);
         win32::Error::result("NCryptSecretAgreement", status, secret)
     }
 }
 
-pub fn derive_key(secret: &NCryptHandle, label: Option<&str>) -> win32::Result<Vec<u8>> {
+pub fn derive_key(secret: &Handle, label: Option<&str>) -> win32::Result<Vec<u8>> {
     unsafe {
         let mut sha2 = to_lpcwstr(BCRYPT_SHA256_ALGORITHM);
 
