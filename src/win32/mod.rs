@@ -5,7 +5,7 @@ pub mod handle;
 pub use self::handle::{CloseHandle, Handle};
 
 pub mod lpcwstr;
-pub use self::lpcwstr::{to_lpcwstr, ToLpcwstr};
+pub use self::lpcwstr::ToLpcwstr;
 
 pub mod ncrypt;
 pub mod bcrypt;

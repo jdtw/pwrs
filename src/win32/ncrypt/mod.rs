@@ -2,7 +2,7 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
-use win32::{to_lpcwstr, CloseHandle, Handle, ToLpcwstr};
+use win32::{CloseHandle, Handle, ToLpcwstr};
 
 use std::ptr::{null, null_mut};
 use std::string::ToString;
@@ -54,7 +54,7 @@ pub fn open_key(prov: &Handle<Object>, key_name: &str) -> win32::Result<Handle<O
         let status = NCryptOpenKey(
             prov.get(),
             key.as_out_param(),
-            to_lpcwstr(key_name).as_ptr(),
+            key_name.to_lpcwstr().as_ptr(),
             0,
             0,
         );
@@ -81,7 +81,7 @@ pub fn create_persisted_key(
 ) -> win32::Result<Handle<Object>> {
     unsafe {
         let mut key = Handle::new();
-        let name_bytes = key_name.map(|n| to_lpcwstr(n));
+        let name_bytes = key_name.map(|n| n.to_lpcwstr());
         let name_ptr = match &name_bytes {
             &Some(ref bytes) => bytes.as_ptr(),
             &None => null(),
@@ -198,8 +198,8 @@ pub fn secret_agreement(
 
 pub fn derive_key(secret: &Handle<Object>, label: &str) -> win32::Result<Vec<u8>> {
     unsafe {
-        let mut sha2 = to_lpcwstr(BCRYPT_SHA256_ALGORITHM);
-        let mut label = to_lpcwstr(label);
+        let mut sha2 = BCRYPT_SHA256_ALGORITHM.to_lpcwstr();
+        let mut label = label.to_lpcwstr();
         let mut buffers: [BCryptBuffer; 2] = [
             BCryptBuffer {
                 BufferType: KDF_HASH_ALGORITHM,
@@ -222,7 +222,7 @@ pub fn derive_key(secret: &Handle<Object>, label: &str) -> win32::Result<Vec<u8>
         let mut byte_count: u32 = 0;
         let status = NCryptDeriveKey(
             secret.get(),
-            to_lpcwstr(BCRYPT_KDF_HMAC).as_ptr(),
+            BCRYPT_KDF_HMAC.to_lpcwstr().as_ptr(),
             &mut parameters,
             output.as_mut_ptr(),
             32,

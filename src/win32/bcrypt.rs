@@ -1,7 +1,7 @@
 use winapi::shared::bcrypt::*;
 use winapi::ctypes::c_void;
 use win32;
-use win32::{CloseHandle, Handle};
+use win32::{CloseHandle, Handle, ToLpcwstr};
 use std::ptr::{null, null_mut};
 
 pub enum HandleType {
@@ -56,7 +56,7 @@ pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> win32::Result<Handl
 }
 
 pub fn key_derivation(key: &Handle<Key>, label: &str, output_len: usize) -> win32::Result<Vec<u8>> {
-    let label_bytes = win32::to_lpcwstr(label);
+    let label_bytes = label.to_lpcwstr();
     let mut buffer = BCryptBuffer {
         BufferType: KDF_LABEL,
         cbBuffer: (label_bytes.len() * 2) as u32,
