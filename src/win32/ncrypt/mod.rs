@@ -86,9 +86,9 @@ pub fn create_persisted_key(
             provider.get(),
             key.as_out_param(),
             algo.to_string().to_lpcwstr().as_ptr(),
-            match name_bytes {
-                Some(ptr) => ptr.as_ptr(),
-                None => null(),
+            match &name_bytes {
+                &Some(ref ptr) => ptr.as_ptr(),
+                &None => null(),
             },
             0,
             0,

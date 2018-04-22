@@ -19,7 +19,7 @@ pub struct HashHandle;
 impl CloseHandle for HashHandle {
     fn close(handle: &usize) {
         unsafe {
-            BCryptDestroyHash(*handle as BCRYPT_HASH_HANDLE);
+            BCryptDestroyHash(*handle as BCRYPT_HANDLE);
         }
     }
 }
@@ -28,7 +28,7 @@ pub struct Key;
 impl CloseHandle for Key {
     fn close(handle: &usize) {
         unsafe {
-            BCryptDestroyKey(*handle as BCRYPT_HASH_HANDLE);
+            BCryptDestroyKey(*handle as BCRYPT_HANDLE);
         }
     }
 }
@@ -102,10 +102,10 @@ impl<'a> Hash<'a> {
 
     pub fn finish_hash(self) -> win32::Result<Vec<u8>> {
         unsafe {
-            let output_len = match &self.alg {
-                &HashAlg::Sha1 => 20,
-                &HashAlg::Sha256 => 32,
-                &HashAlg::HmacSha256(_) => 32,
+            let output_len = match self.alg {
+                HashAlg::Sha1 => 20,
+                HashAlg::Sha256 => 32,
+                HashAlg::HmacSha256(_) => 32,
             };
             let mut output = Vec::with_capacity(output_len);
             let status = BCryptFinishHash(
