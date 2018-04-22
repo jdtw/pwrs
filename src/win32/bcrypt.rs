@@ -1,6 +1,6 @@
 use winapi::shared::bcrypt::*;
 use win32;
-use win32::Handle;
+use win32::{CloseHandle, Handle};
 use std::ptr::{null, null_mut};
 
 // The BCrypt functions don't take const input
@@ -15,15 +15,22 @@ pub enum HandleType {
     SymmetricKey,
 }
 
-fn new_handle(handle_type: HandleType) -> Handle {
-    Handle::new(match handle_type {
-        HandleType::Hash => Box::new(|handle| unsafe {
-            BCryptDestroyHash(*handle as BCRYPT_HANDLE);
-        }),
-        HandleType::SymmetricKey => Box::new(|handle| unsafe {
-            BCryptDestroyKey(*handle as BCRYPT_HANDLE);
-        }),
-    })
+pub struct HashHandle;
+impl CloseHandle for HashHandle {
+    fn close(handle: &usize) {
+        unsafe {
+            BCryptDestroyHash(*handle as BCRYPT_HASH_HANDLE);
+        }
+    }
+}
+
+pub struct Key;
+impl CloseHandle for Key {
+    fn close(handle: &usize) {
+        unsafe {
+            BCryptDestroyKey(*handle as BCRYPT_HASH_HANDLE);
+        }
+    }
 }
 
 pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
@@ -50,7 +57,7 @@ pub enum HashAlg<'a> {
 }
 
 pub struct Hash<'a> {
-    handle: Handle,
+    handle: Handle<HashHandle>,
     alg: HashAlg<'a>,
 }
 
@@ -58,7 +65,7 @@ impl<'a> Hash<'a> {
     pub fn new(alg: HashAlg) -> win32::Result<Hash> {
         unsafe {
             let mut hash = Hash {
-                handle: new_handle(HandleType::Hash),
+                handle: Handle::new(),
                 alg,
             };
             let (alg_handle, secret, secret_len) = match &hash.alg {

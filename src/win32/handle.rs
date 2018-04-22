@@ -1,11 +1,20 @@
-pub struct Handle {
-    handle: usize,
-    close: Box<Fn(&mut usize)>,
+use std::marker::PhantomData;
+
+pub trait CloseHandle {
+    fn close(&usize);
 }
 
-impl Handle {
-    pub fn new(close: Box<Fn(&mut usize)>) -> Handle {
-        Handle { handle: 0, close }
+pub struct Handle<T: CloseHandle> {
+    handle: usize,
+    phantom: PhantomData<T>,
+}
+
+impl<T: CloseHandle> Handle<T> {
+    pub fn new() -> Handle<T> {
+        Handle {
+            handle: 0,
+            phantom: PhantomData,
+        }
     }
 
     pub fn as_out_param(&mut self) -> &mut usize {
@@ -19,7 +28,7 @@ impl Handle {
 
     pub fn reset(&mut self) {
         if self.handle != 0 {
-            (self.close)(&mut self.handle);
+            T::close(&self.handle);
             self.handle = 0;
         }
     }
@@ -31,7 +40,7 @@ impl Handle {
     }
 }
 
-impl Drop for Handle {
+impl<T: CloseHandle> Drop for Handle<T> {
     fn drop(&mut self) {
         self.reset();
     }
