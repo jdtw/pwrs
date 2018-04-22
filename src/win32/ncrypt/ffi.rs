@@ -6,10 +6,6 @@ use winapi::shared::minwindef::ULONG;
 use winapi::um::winnt::LPCWSTR;
 use winapi::shared::bcrypt::*;
 
-use std::ffi::OsStr;
-use std::iter::once;
-use std::os::windows::ffi::OsStrExt;
-
 type DWORD = ULONG;
 pub type SECURITY_STATUS = i32;
 
@@ -93,18 +89,4 @@ extern "stdcall" {
         pcbResult: *mut DWORD,
         dwFlags: DWORD,
     ) -> SECURITY_STATUS;
-}
-
-pub trait ToLpcwstr {
-    fn to_lpcwstr(&self) -> Vec<u16>;
-}
-
-pub fn to_lpcwstr(string: &str) -> Vec<u16> {
-    OsStr::new(string).encode_wide().chain(once(0)).collect()
-}
-
-impl ToLpcwstr for String {
-    fn to_lpcwstr(&self) -> Vec<u16> {
-        to_lpcwstr(self)
-    }
 }

@@ -1,4 +1,5 @@
 use winapi::shared::bcrypt::*;
+use winapi::ctypes::c_void;
 use win32;
 use win32::{CloseHandle, Handle};
 use std::ptr::{null, null_mut};
@@ -58,6 +59,39 @@ pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> win32::Result<Handl
             0,
         );
         win32::Error::result("BCryptGenerateSymmetricKey", status, key)
+    }
+}
+
+pub fn key_derivation(key: &Handle<Key>, label: &str, output_len: usize) -> win32::Result<Vec<u8>> {
+    let label_bytes = win32::to_lpcwstr(label);
+    let mut buffer = BCryptBuffer {
+        BufferType: KDF_LABEL,
+        cbBuffer: (label_bytes.len() * 2) as u32,
+        pvBuffer: label_bytes.as_ptr() as *mut c_void,
+    };
+
+    let mut parameters = BCryptBufferDesc {
+        cBuffers: 1,
+        ulVersion: BCRYPTBUFFER_VERSION,
+        pBuffers: &mut buffer,
+    };
+
+    unsafe {
+        let mut output = Vec::with_capacity(output_len);
+        let mut result_byte_count = 0;
+        let status = BCryptKeyDerivation(
+            key.get() as BCRYPT_HANDLE,
+            &mut parameters,
+            output.as_mut_ptr(),
+            output_len as u32,
+            &mut result_byte_count,
+            0,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptKeyDerivation", status));
+        }
+        output.set_len(result_byte_count as usize);
+        Ok(output)
     }
 }
 
@@ -169,6 +203,18 @@ pub fn hmac_sha256(secret: &[u8], data: &[u8]) -> win32::Result<Vec<u8>> {
     hash_data(HashAlg::HmacSha256(&secret), &data)
 }
 
+pub fn hmac_sha256_with_label(secret: &[u8], label: &str, data: &[u8]) -> win32::Result<Vec<u8>> {
+    hmac_sha256(
+        secret,
+        &label
+            .as_bytes()
+            .iter()
+            .cloned()
+            .chain(data.iter().cloned())
+            .collect::<Vec<u8>>(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,6 +231,19 @@ mod tests {
         let secret = gen_random(32).unwrap();
         generate_symmetric_key(SymAlg::Aes256Cbc, &secret).unwrap();
         generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
+    }
+
+    #[test]
+    fn test_kdf() {
+        let secret = gen_random(32).unwrap();
+        let key = generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
+        let kdf_bytes1 = key_derivation(&key, "test_kdf", 128).unwrap();
+        assert_eq!(kdf_bytes1.len(), 128);
+
+        // Re-derive and ensure the bytes are the same
+        let key = generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
+        let kdf_bytes2 = key_derivation(&key, "test_kdf", 128).unwrap();
+        assert_eq!(kdf_bytes1, kdf_bytes2);
     }
 
     #[test]
@@ -229,24 +288,37 @@ mod tests {
 
     #[test]
     fn test_hmac_data_sha2() {
+        let label = "foobar";
+        let label_bytes = label.as_bytes();
         let input: [u8; 5] = [1, 2, 3, 4, 5];
         let secret: [u8; 32] = [0; 32];
 
         let hash = Hash::new(HashAlg::HmacSha256(&secret)).unwrap();
+        hash.hash_data(&label_bytes).unwrap();
         hash.hash_data(&input).unwrap();
         hash.hash_data(&input).unwrap();
         let output1 = hash.finish_hash().unwrap();
+        assert!(output1.len() == 32);
 
         let output2 = hmac_sha256(
             &secret,
+            &label_bytes
+                .iter()
+                .cloned()
+                .chain(input.iter().cloned().chain(input.iter().cloned()))
+                .collect::<Vec<u8>>(),
+        ).unwrap();
+        assert_eq!(output1, output2);
+
+        let output3 = hmac_sha256_with_label(
+            &secret,
+            label,
             &input
                 .iter()
                 .cloned()
                 .chain(input.iter().cloned())
                 .collect::<Vec<u8>>(),
         ).unwrap();
-
-        assert_eq!(output1, output2);
-        assert!(output1.len() == 32);
+        assert_eq!(output2, output3);
     }
 }

@@ -2,7 +2,7 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
-use win32::{CloseHandle, Handle};
+use win32::{to_lpcwstr, CloseHandle, Handle, ToLpcwstr};
 
 use std::ptr::{null, null_mut};
 use std::string::ToString;
