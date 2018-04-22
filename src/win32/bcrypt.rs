@@ -412,4 +412,28 @@ mod tests {
         ).unwrap();
         assert_eq!(output2, output3);
     }
+
+    #[test]
+    fn test_encrypt_then_mac() {
+        let username = "username";
+        let password = "P@ssw0rd!";
+        let iv: [u8; 32] = [0; 32];
+
+        let secret = gen_random(32).unwrap();
+        let secret = generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret).unwrap();
+        let keys = key_derivation(&secret, "encrypt+mac", 64).unwrap();
+        let keys = keys.chunks(32).collect::<Vec<&[u8]>>();
+        let key = generate_symmetric_key(SymAlg::Aes256Cbc, keys[0]).unwrap();
+        let encrypted = encrypt_data(&key, &iv, password.as_bytes()).unwrap();
+        let mac = hmac_sha256_with_label(keys[1], username, &encrypted).unwrap();
+        // At this point, we would store the (username, mac, encrypted) tuple.
+        // Now test that this is all reproducable.
+        let keys = key_derivation(&secret, "encrypt+mac", 64).unwrap();
+        let keys = keys.chunks(32).collect::<Vec<&[u8]>>();
+        let verification = hmac_sha256_with_label(keys[1], username, &encrypted).unwrap();
+        assert_eq!(mac, verification);
+        let key = generate_symmetric_key(SymAlg::Aes256Cbc, keys[0]).unwrap();
+        let decrypted = decrypt_data(&key, &iv, &encrypted).unwrap();
+        assert_eq!(password, String::from_utf8(decrypted).unwrap());
+    }
 }

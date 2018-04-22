@@ -196,29 +196,22 @@ pub fn secret_agreement(
     }
 }
 
-pub fn derive_key(secret: &Handle<Object>, label: Option<&str>) -> win32::Result<Vec<u8>> {
+pub fn derive_key(secret: &Handle<Object>, label: &str) -> win32::Result<Vec<u8>> {
     unsafe {
         let mut sha2 = to_lpcwstr(BCRYPT_SHA256_ALGORITHM);
-
-        let mut buffers = vec![
+        let mut label = to_lpcwstr(label);
+        let mut buffers: [BCryptBuffer; 2] = [
             BCryptBuffer {
                 BufferType: KDF_HASH_ALGORITHM,
                 cbBuffer: (sha2.len() * 2) as u32,
                 pvBuffer: sha2.as_mut_ptr() as *mut c_void,
             },
-        ];
-        let label_bytes = label.map(|l| to_lpcwstr(l));
-        let (label_ptr, label_len) = match &label_bytes {
-            &Some(ref bytes) => (bytes.as_ptr(), bytes.len() * 2),
-            &None => (null(), 0),
-        };
-        if label_len > 0 {
-            buffers.push(BCryptBuffer {
+            BCryptBuffer {
                 BufferType: KDF_SECRET_PREPEND,
-                cbBuffer: label_len as u32,
-                pvBuffer: label_ptr as *mut c_void,
-            });
-        }
+                cbBuffer: (label.len() * 2) as u32,
+                pvBuffer: label.as_mut_ptr() as *mut c_void,
+            },
+        ];
         let mut parameters = BCryptBufferDesc {
             cBuffers: buffers.len() as u32,
             ulVersion: BCRYPTBUFFER_VERSION,
@@ -305,12 +298,12 @@ mod tests {
         // Import Bob's pub key and derive secret for Alice
         let pubkey_bob = import_key(&prov_alice, Blob::EccPublic, &pubkey_bob).unwrap();
         let secret_alice = secret_agreement(&key_alice, &pubkey_bob).unwrap();
-        let derived_alice = derive_key(&secret_alice, Some("alice+bob")).unwrap();
+        let derived_alice = derive_key(&secret_alice, "alice+bob").unwrap();
 
         // Import Alice's pub key and derive secret for Bob
         let pubkey_alice = import_key(&prov_bob, Blob::EccPublic, &pubkey_alice).unwrap();
         let secret_bob = secret_agreement(&key_bob, &pubkey_alice).unwrap();
-        let derived_bob = derive_key(&secret_bob, Some("alice+bob")).unwrap();
+        let derived_bob = derive_key(&secret_bob, "alice+bob").unwrap();
 
         assert_eq!(derived_alice, derived_bob);
     }
