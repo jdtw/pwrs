@@ -2,12 +2,12 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
+use win32::winapi::shared::bcrypt::*;
+use win32::winapi::ctypes::c_void;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 
 use std::ptr::{null, null_mut};
 use std::string::ToString;
-use winapi::shared::bcrypt::*;
-use winapi::ctypes::c_void;
 
 pub struct Object;
 impl CloseHandle for Object {

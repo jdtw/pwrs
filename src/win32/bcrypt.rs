@@ -1,6 +1,6 @@
-use winapi::shared::bcrypt::*;
-use winapi::ctypes::c_void;
 use win32;
+use win32::winapi::shared::bcrypt::*;
+use win32::winapi::ctypes::c_void;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 use std::ptr::{null, null_mut};
 

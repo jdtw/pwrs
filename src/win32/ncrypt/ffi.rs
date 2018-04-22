@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use winapi::shared::basetsd::ULONG_PTR;
-use winapi::shared::minwindef::ULONG;
-use winapi::um::winnt::LPCWSTR;
-use winapi::shared::bcrypt::*;
+use win32::winapi::shared::basetsd::ULONG_PTR;
+use win32::winapi::shared::minwindef::ULONG;
+use win32::winapi::um::winnt::LPCWSTR;
+use win32::winapi::shared::bcrypt::*;
 
 type DWORD = ULONG;
 pub type SECURITY_STATUS = i32;

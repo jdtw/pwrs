@@ -11,8 +11,6 @@ use std::collections::HashMap;
 use std::io;
 use std::io::prelude::*;
 
-extern crate winapi;
-
 #[derive(Debug)]
 pub enum PwrsError {
     JsonError(serde_json::Error),
