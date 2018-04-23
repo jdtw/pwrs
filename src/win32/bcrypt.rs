@@ -3,6 +3,7 @@ use win32::winapi::shared::bcrypt::*;
 use win32::winapi::ctypes::c_void;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 use std::ptr::{null, null_mut};
+use std::string::ToString;
 
 pub enum HandleType {
     Hash,
@@ -24,6 +25,170 @@ impl CloseHandle for Key {
         unsafe {
             BCryptDestroyKey(*handle as BCRYPT_HANDLE);
         }
+    }
+}
+
+pub struct Secret;
+impl CloseHandle for Secret {
+    fn close(handle: &usize) {
+        unsafe {
+            BCryptDestroySecret(*handle as BCRYPT_HANDLE);
+        }
+    }
+}
+
+pub enum Algorithm {
+    EcdhP256,
+}
+
+impl ToString for Algorithm {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            &Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
+        })
+    }
+}
+
+pub fn generate_key_pair(alg: Algorithm) -> win32::Result<Handle<Key>> {
+    unsafe {
+        let alg = match alg {
+            Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALG_HANDLE,
+        };
+        let mut key = Handle::new();
+        let status = BCryptGenerateKeyPair(
+            alg,
+            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            0,
+            0,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptGenerateKeyPair", status));
+        }
+        let status = BCryptFinalizeKeyPair(key.get() as BCRYPT_HANDLE, 0);
+        win32::Error::result("BCryptFinalizeKeyPair", status, key)
+    }
+}
+
+pub enum Blob {
+    EccPublic,
+    EccPrivate,
+}
+
+impl ToString for Blob {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            &Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
+            &Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
+        })
+    }
+}
+
+pub fn import_key_pair(alg: Algorithm, blob: Blob, bytes: &[u8]) -> win32::Result<Handle<Key>> {
+    unsafe {
+        let alg = match alg {
+            Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALG_HANDLE,
+        };
+        let mut key = Handle::new();
+        let status = BCryptImportKeyPair(
+            alg,
+            null_mut(),
+            blob.to_string().to_lpcwstr().as_ptr(),
+            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            bytes.as_ptr() as *const u8 as *mut u8,
+            bytes.len() as u32,
+            0,
+        );
+        win32::Error::result("BCryptImportKeyPair", status, key)
+    }
+}
+
+pub fn export_key(key: &Handle<Key>, blob: Blob) -> win32::Result<Vec<u8>> {
+    unsafe {
+        let blob_bytes = blob.to_string().to_lpcwstr();
+        let mut byte_count: u32 = 0;
+        let status = BCryptExportKey(
+            key.get() as BCRYPT_HANDLE,
+            null_mut(),
+            blob_bytes.as_ptr(),
+            null_mut(),
+            0,
+            &mut byte_count,
+            0,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptExportKey", status));
+        }
+
+        let mut output = Vec::with_capacity(byte_count as usize);
+        let status = BCryptExportKey(
+            key.get() as BCRYPT_HANDLE,
+            null_mut(),
+            blob_bytes.as_ptr(),
+            output.as_mut_ptr(),
+            byte_count,
+            &mut byte_count,
+            0,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptExportKey", status));
+        }
+
+        output.set_len(byte_count as usize);
+        Ok(output)
+    }
+}
+
+pub fn secret_agreement(sk: &Handle<Key>, pk: &Handle<Key>) -> win32::Result<Handle<Secret>> {
+    unsafe {
+        let mut secret = Handle::new();
+        let status = BCryptSecretAgreement(
+            sk.get() as BCRYPT_HANDLE,
+            pk.get() as BCRYPT_HANDLE,
+            secret.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            0,
+        );
+        win32::Error::result("BCryptSecretAgreement", status, secret)
+    }
+}
+
+pub fn derive_key(secret: &Handle<Secret>, label: &str) -> win32::Result<Vec<u8>> {
+    unsafe {
+        let mut sha2 = BCRYPT_SHA256_ALGORITHM.to_lpcwstr();
+        let mut label = label.to_lpcwstr();
+        let mut buffers: [BCryptBuffer; 2] = [
+            BCryptBuffer {
+                BufferType: KDF_HASH_ALGORITHM,
+                cbBuffer: (sha2.len() * 2) as u32,
+                pvBuffer: sha2.as_mut_ptr() as *mut c_void,
+            },
+            BCryptBuffer {
+                BufferType: KDF_SECRET_PREPEND,
+                cbBuffer: (label.len() * 2) as u32,
+                pvBuffer: label.as_mut_ptr() as *mut c_void,
+            },
+        ];
+        let mut parameters = BCryptBufferDesc {
+            cBuffers: buffers.len() as u32,
+            ulVersion: BCRYPTBUFFER_VERSION,
+            pBuffers: buffers.as_mut_ptr(),
+        };
+        // SHA256 means 32 output bytes
+        let mut output = Vec::with_capacity(32);
+        let mut byte_count: u32 = 0;
+        let status = BCryptDeriveKey(
+            secret.get() as BCRYPT_HANDLE,
+            BCRYPT_KDF_HMAC.to_lpcwstr().as_ptr(),
+            &mut parameters,
+            output.as_mut_ptr(),
+            32,
+            &mut byte_count,
+            KDF_USE_SECRET_AS_HMAC_KEY_FLAG,
+        );
+        if status != 0 {
+            return Err(win32::Error::new("BCryptDeriveKey", status));
+        }
+        output.set_len(byte_count as usize);
+        Ok(output)
     }
 }
 
@@ -435,5 +600,33 @@ mod tests {
         let key = generate_symmetric_key(SymAlg::Aes256Cbc, keys[0]).unwrap();
         let decrypted = decrypt_data(&key, &iv, &encrypted).unwrap();
         assert_eq!(password, String::from_utf8(decrypted).unwrap());
+    }
+
+    #[test]
+    fn test_ecdh_key_agreement() {
+        let key_alice = generate_key_pair(Algorithm::EcdhP256).unwrap();
+        let pubkey_alice = export_key(&key_alice, Blob::EccPublic).unwrap();
+        let privkey_alice = export_key(&key_alice, Blob::EccPrivate).unwrap();
+        let key_alice =
+            import_key_pair(Algorithm::EcdhP256, Blob::EccPrivate, &privkey_alice).unwrap();
+
+        let key_bob = generate_key_pair(Algorithm::EcdhP256).unwrap();
+        let pubkey_bob = export_key(&key_bob, Blob::EccPublic).unwrap();
+        let privkey_bob = export_key(&key_bob, Blob::EccPrivate).unwrap();
+        let key_bob = import_key_pair(Algorithm::EcdhP256, Blob::EccPrivate, &privkey_bob).unwrap();
+
+        // Import Bob's pub key and derive secret for Alice
+        let pubkey_bob =
+            import_key_pair(Algorithm::EcdhP256, Blob::EccPublic, &pubkey_bob).unwrap();
+        let secret_alice = secret_agreement(&key_alice, &pubkey_bob).unwrap();
+        let derived_alice = derive_key(&secret_alice, "alice+bob").unwrap();
+
+        // Import Alice's pub key and derive secret for Bob
+        let pubkey_alice =
+            import_key_pair(Algorithm::EcdhP256, Blob::EccPublic, &pubkey_alice).unwrap();
+        let secret_bob = secret_agreement(&key_bob, &pubkey_alice).unwrap();
+        let derived_bob = derive_key(&secret_bob, "alice+bob").unwrap();
+
+        assert_eq!(derived_alice, derived_bob);
     }
 }

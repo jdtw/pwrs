@@ -25,4 +25,16 @@ impl Entry {
     pub fn username(&self) -> &str {
         &self.username
     }
+
+    pub fn pk(&self) -> &[u8] {
+        &self.pk
+    }
+
+    pub fn encrypted_password(&self) -> &[u8] {
+        &self.encrypted_password
+    }
+
+    pub fn mac(&self) -> &[u8] {
+        &self.mac
+    }
 }

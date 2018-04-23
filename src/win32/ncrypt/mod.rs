@@ -2,6 +2,7 @@ mod ffi;
 
 use self::ffi::*;
 use win32;
+pub use win32::bcrypt::{Algorithm, Blob};
 use win32::winapi::shared::bcrypt::*;
 use win32::winapi::ctypes::c_void;
 use win32::{CloseHandle, Handle, ToLpcwstr};
@@ -62,18 +63,6 @@ pub fn open_key(prov: &Handle<Object>, key_name: &str) -> win32::Result<Handle<O
     }
 }
 
-pub enum Algorithm {
-    EcdhP256,
-}
-
-impl ToString for Algorithm {
-    fn to_string(&self) -> String {
-        String::from(match self {
-            &Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALGORITHM,
-        })
-    }
-}
-
 pub fn create_persisted_key(
     provider: &Handle<Object>,
     algo: Algorithm,
@@ -109,20 +98,6 @@ pub fn delete_key(mut key: Handle<Object>) -> win32::Result<()> {
     unsafe {
         let status = NCryptDeleteKey(key.release(), 0);
         win32::Error::result("NCryptDeleteKey", status, ())
-    }
-}
-
-pub enum Blob {
-    EccPublic,
-    EccPrivate,
-}
-
-impl ToString for Blob {
-    fn to_string(&self) -> String {
-        String::from(match self {
-            &Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
-            &Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
-        })
     }
 }
 
