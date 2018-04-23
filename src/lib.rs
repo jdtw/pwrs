@@ -1,111 +1,53 @@
-pub mod win32;
-pub mod utils;
-
 extern crate serde;
 extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
 
+pub mod win32;
+pub mod utils;
+pub mod error;
+pub mod protector;
+pub mod entry;
+
+use protector::Protector;
+use entry::Entry;
+
 use std::collections::HashMap;
-use std::io;
 use std::io::prelude::*;
-
-#[derive(Debug)]
-pub enum PwrsError {
-    JsonError(serde_json::Error),
-    IoError(io::Error),
-    FromUtf8Error(std::string::FromUtf8Error),
-    Win32Error(win32::Error),
-}
-
-impl From<io::Error> for PwrsError {
-    fn from(error: io::Error) -> Self {
-        PwrsError::IoError(error)
-    }
-}
-
-impl From<serde_json::Error> for PwrsError {
-    fn from(error: serde_json::Error) -> Self {
-        PwrsError::JsonError(error)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for PwrsError {
-    fn from(error: std::string::FromUtf8Error) -> Self {
-        PwrsError::FromUtf8Error(error)
-    }
-}
-
-impl From<win32::Error> for PwrsError {
-    fn from(error: win32::Error) -> Self {
-        PwrsError::Win32Error(error)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Entry {
-    pk: Vec<u8>, // ECDH P256
-    user_name: String,
-    encrypted_password: Vec<u8>, // AES-256 CBC
-    mac: Vec<u8>,                // key||user_name||encrypted_password
-}
-
-pub trait Protector {
-    fn decrypt(&self, entry: &Entry) -> Result<Vec<u8>, PwrsError>;
-}
-
-impl Entry {
-    fn new(_pk: &[u8], user_name: &str, _password: &str) -> Entry {
-        // TODO:
-        // 1. Generate ephemeral ecdh key pair (pk_e, sk_e)
-        // 2. Do secret agreement with pk, sk_e
-        // 3. Use KDF to get encryption key k and mac secret s
-        // 4. Encrypt password (with zero IV) with k
-        // 5. Mac user_name||encrypted_password with s
-        Entry {
-            pk: Vec::new(),
-            user_name: String::from(user_name),
-            encrypted_password: Vec::new(),
-            mac: Vec::new(),
-        }
-    }
-
-    pub fn user_name(&self) -> &str {
-        &self.user_name
-    }
-
-    pub fn decrypt<T: Protector>(&self, protector: &T) -> Result<String, PwrsError> {
-        let string = String::from_utf8(protector.decrypt(&self)?)?;
-        Ok(string)
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
     pk: Vec<u8>,
+    protector: Protector,
     entries: HashMap<String, Entry>,
 }
 
 impl Vault {
-    pub fn new(pk: Vec<u8>) -> Vault {
+    pub fn new(pk: Vec<u8>, protector: Protector) -> Vault {
         Vault {
             pk,
+            protector,
             entries: HashMap::new(),
         }
     }
 
-    pub fn new_entry(&mut self, key: &str, user_name: &str, password: &str) -> &Entry {
-        self.entries
-            .insert(String::from(key), Entry::new(&self.pk, user_name, password));
-        &self.entries[key]
+    pub fn new_entry(
+        &mut self,
+        key: &str,
+        username: &str,
+        password: &str,
+    ) -> error::Result<&Entry> {
+        let entry = Protector::protect(&self.pk, username, password)?;
+        self.entries.insert(String::from(key), entry);
+        Ok(&self.entries[key])
     }
 
-    pub fn write<W: Write>(&self, writer: W) -> Result<(), PwrsError> {
+    pub fn write<W: Write>(&self, writer: W) -> error::Result<()> {
         Ok(serde_json::to_writer(writer, &self)?)
     }
 
-    pub fn read<R: Read>(reader: R) -> Result<Vault, PwrsError> {
+    pub fn read<R: Read>(reader: R) -> error::Result<Vault> {
         Ok(serde_json::from_reader(reader)?)
     }
 
@@ -128,9 +70,9 @@ mod tests {
             TestProtector(String::from(string))
         }
     }
-    impl Protector for TestProtector {
-        fn decrypt(&self, _entry: &Entry) -> Result<Vec<u8>, PwrsError> {
-            Ok(self.0.as_bytes().to_vec())
+    impl DecryptEntry for TestProtector {
+        fn decrypt(&self, _entry: &Entry) -> Result<String, self::Error> {
+            Ok(self.0.clone())
         }
     }
 
@@ -139,7 +81,7 @@ mod tests {
         let entry = Entry::new(&Vec::new(), "foo", "bar");
         assert!(entry.pk.is_empty());
         assert!(entry.encrypted_password.is_empty());
-        assert_eq!(entry.user_name, "foo");
+        assert_eq!(entry.username, "foo");
         assert!(entry.mac.is_empty());
     }
 
@@ -147,7 +89,7 @@ mod tests {
     fn decrypt_entry() {
         let entry = Entry::new(&Vec::new(), "foo", "bar");
         let protector = TestProtector::new("foobar");
-        let decrypted = entry.decrypt(&protector).unwrap();
+        let decrypted = protector.decrypt(&entry).unwrap();
         assert_eq!("foobar", decrypted);
     }
 
@@ -156,7 +98,7 @@ mod tests {
         let mut vault = Vault::new(vec![1, 2, 3]);
         assert_eq!(vec![1, 2, 3], vault.pk);
         let entry = vault.new_entry("example.com", "foo", "bar");
-        assert_eq!(entry.user_name, "foo");
+        assert_eq!(entry.username, "foo");
     }
 
     #[test]
