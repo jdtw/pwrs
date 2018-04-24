@@ -1,5 +1,7 @@
 use error;
 use win32::ncrypt;
+#[cfg(test)]
+use crypto::EcdhKeyPair;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Authenticator {
@@ -54,9 +56,6 @@ fn new_ksp_authenticator(_ksp: ncrypt::Ksp) -> error::Result<(Vec<u8>, Authentic
 mod tests {
     use super::*;
     use entry::Entry;
-    use crypto::EcdhKeyPair;
-
-    fn new_authenticator() -> (Vec<u8>, Authenticator) {}
 
     pub fn authenticate(sk: &[u8], pk: &[u8]) -> Vec<u8> {
         let sk = EcdhKeyPair::import(sk).unwrap();
@@ -65,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_protect_unprotect() {
-        let (pk, authenticator) = new_authenticator();
+        let (pk, authenticator) = new_test_authenticator().unwrap();
         let entry = Entry::new(&pk, "john", "password").unwrap();
         let decrypted = entry.decrypt(&authenticator).unwrap();
         assert_eq!("password", decrypted);
