@@ -7,10 +7,11 @@ extern crate serde_derive;
 pub mod win32;
 pub mod utils;
 pub mod error;
-pub mod protector;
+pub mod authenticator;
 pub mod entry;
+pub mod crypto;
 
-use protector::Protector;
+use authenticator::Authenticator;
 use entry::Entry;
 
 use std::collections::HashMap;
@@ -19,15 +20,15 @@ use std::io::prelude::*;
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
     pk: Vec<u8>,
-    protector: Protector,
+    authenticator: Authenticator,
     entries: HashMap<String, Entry>,
 }
 
 impl Vault {
-    pub fn new(pk: Vec<u8>, protector: Protector) -> Vault {
+    pub fn new(pk: Vec<u8>, authenticator: Authenticator) -> Vault {
         Vault {
             pk,
-            protector,
+            authenticator,
             entries: HashMap::new(),
         }
     }
@@ -38,7 +39,7 @@ impl Vault {
         username: &str,
         password: &str,
     ) -> error::Result<&Entry> {
-        let entry = Protector::protect(&self.pk, username, password)?;
+        let entry = Entry::new(&self.pk, username, password)?;
         self.entries.insert(String::from(key), entry);
         Ok(&self.entries[key])
     }
@@ -76,8 +77,8 @@ mod tests {
     //    #[test]
     //    fn decrypt_entry() {
     //        let entry = Entry::new(&Vec::new(), "foo", "bar");
-    //        let protector = TestProtector::new("foobar");
-    //        let decrypted = protector.decrypt(&entry).unwrap();
+    //        let authenticator = TestAuthenticator::new("foobar");
+    //        let decrypted = authenticator.decrypt(&entry).unwrap();
     //        assert_eq!("foobar", decrypted);
     //    }
     //

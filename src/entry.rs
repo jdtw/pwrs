@@ -1,4 +1,6 @@
 use error;
+use crypto::{DerivedKeys, EcdhKeyPair};
+use authenticator::{Authenticate, Authenticator};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
@@ -8,43 +10,33 @@ pub struct Entry {
     mac: Vec<u8>,                // HMAC_SHA256(username||encrypted_password)
 }
 
-// This "Decrypt" trait should move into the entry. The contract between entry/protector should be:
-// - Protector::Unprotect(entry_pk) -> master_secret
-// - Entry::Protect(protector_pk, username, password) -> Entry
-// - Entry::Unprotect(master_secret) -> Password
-// The purpose of the protector is only to abstract away the private key operation needed for
-// secret agreement. It should not be doing the decryption.
-//pub trait Unprotect {
-//    fn unprotect(&self, pk: &[u8]) -> Vec<u8>;
-//}
-pub trait Decrypt {
-    fn decrypt(&self, entry: &Entry) -> error::Result<String>;
-}
-
-
 impl Entry {
-    pub fn new(pk: Vec<u8>, username: &str, encrypted_password: Vec<u8>, mac: Vec<u8>) -> Entry {
-        Entry {
-            pk,
+    pub fn new(pk: &[u8], username: &str, password: &str) -> error::Result<Entry> {
+        let ephemeral = EcdhKeyPair::new()?;
+        let secret = ephemeral.agree_and_derive(pk)?;
+        let keys = DerivedKeys::new(&secret)?;
+        let encrypted_password = keys.encrypt(password)?;
+        let mac = keys.mac(username, &encrypted_password)?;
+
+        Ok(Entry {
+            pk: ephemeral.pk()?,
             username: String::from(username),
             encrypted_password,
             mac,
+        })
+    }
+
+    pub fn decrypt(&self, authenticator: &Authenticator) -> error::Result<String> {
+        let secret = authenticator.authenticate(&self.pk)?;
+        let keys = DerivedKeys::new(&secret)?;
+        let mac = keys.mac(&self.username, &self.encrypted_password)?;
+        if mac != self.mac {
+            panic!("MAC verification failed!");
         }
+        keys.decrypt(&self.encrypted_password)
     }
 
     pub fn username(&self) -> &str {
         &self.username
-    }
-
-    pub fn pk(&self) -> &[u8] {
-        &self.pk
-    }
-
-    pub fn encrypted_password(&self) -> &[u8] {
-        &self.encrypted_password
-    }
-
-    pub fn mac(&self) -> &[u8] {
-        &self.mac
     }
 }
