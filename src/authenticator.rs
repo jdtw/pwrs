@@ -12,6 +12,8 @@ pub enum Authenticator {
 }
 
 pub trait Authenticate {
+    // TODO: Should probably make the authenticator carry around its own
+    // public key.
     fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>>;
 }
 
