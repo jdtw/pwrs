@@ -31,17 +31,6 @@ impl Vault {
         }
     }
 
-    pub fn new_entry(
-        &mut self,
-        key: &str,
-        username: &str,
-        password: &str,
-    ) -> error::Result<&Entry> {
-        let entry = Entry::new(&self.authenticator, username, password)?;
-        self.entries.insert(String::from(key), entry);
-        Ok(&self.entries[key])
-    }
-
     pub fn write<W: Write>(&self, writer: W) -> error::Result<()> {
         Ok(serde_json::to_writer(writer, &self)?)
     }
@@ -50,8 +39,24 @@ impl Vault {
         Ok(serde_json::from_reader(reader)?)
     }
 
-    pub fn get(&self, key: &str) -> Option<&Entry> {
-        self.entries.get(key)
+    pub fn insert(
+        &mut self,
+        key: String,
+        username: String,
+        password: &str,
+    ) -> error::Result<Option<Entry>> {
+        let entry = Entry::new(&self.authenticator, username, password)?;
+        Ok(self.entries.insert(key, entry))
+    }
+
+    pub fn get(&self, key: &str) -> error::Result<Option<(String, String)>> {
+        match self.entries.get(key) {
+            Some(entry) => {
+                let password = entry.decrypt_with(&self.authenticator)?;
+                Ok(Some((String::from(entry.username()), password)))
+            }
+            None => Ok(None),
+        }
     }
 
     pub fn remove(&mut self, key: &str) {
@@ -62,39 +67,32 @@ impl Vault {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use authenticator::test;
 
-    //    #[test]
-    //    fn new_entry() {
-    //        let entry = Entry::new(&Vec::new(), "foo", "bar");
-    //        assert!(entry.pk.is_empty());
-    //        assert!(entry.encrypted_password.is_empty());
-    //        assert_eq!(entry.username, "foo");
-    //        assert!(entry.mac.is_empty());
-    //    }
-    //
-    //    #[test]
-    //    fn decrypt_entry() {
-    //        let entry = Entry::new(&Vec::new(), "foo", "bar");
-    //        let authenticator = TestAuthenticator::new("foobar");
-    //        let decrypted = authenticator.decrypt(&entry).unwrap();
-    //        assert_eq!("foobar", decrypted);
-    //    }
-    //
-    //    #[test]
-    //    fn new_entry_from_vault() {
-    //        let mut vault = Vault::new(vec![1, 2, 3]);
-    //        assert_eq!(vec![1, 2, 3], vault.pk);
-    //        let entry = vault.new_entry("example.com", "foo", "bar");
-    //        assert_eq!(entry.username, "foo");
-    //    }
-    //
-    //    #[test]
-    //    fn serialize_deserialize_vault() {
-    //        let mut vault = Vault::new(vec![1, 2, 3]);
-    //        vault.new_entry("foo.com", "foo", "bar");
-    //        vault.new_entry("example.com", "user", "pass");
-    //        let serialized = serde_json::to_string(&vault).unwrap();
-    //        let deserialized: Vault = serde_json::from_str(&serialized).unwrap();
-    //        assert_eq!(deserialized, vault);
-    //    }
+    #[test]
+    fn test_insert_get() {
+        let authenticator = test::Test::new().unwrap();
+        let mut vault = Vault::new(authenticator);
+        vault
+            .insert(String::from("key"), String::from("username"), "password")
+            .unwrap();
+        let (username, password) = vault.get("key").unwrap().unwrap();
+        assert_eq!(username, "username");
+        assert_eq!(password, "password");
+    }
+
+    #[test]
+    fn serialize_deserialize_vault() {
+        let authenticator = test::Test::new().unwrap();
+        let mut vault = Vault::new(authenticator);
+        vault
+            .insert(String::from("foo.com"), String::from("foo"), "bar")
+            .unwrap();
+        vault
+            .insert(String::from("example.com"), String::from("user"), "pass")
+            .unwrap();
+        let serialized = serde_json::to_string(&vault).unwrap();
+        let deserialized: Vault = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, vault);
+    }
 }

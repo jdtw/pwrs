@@ -1,9 +1,9 @@
 use error;
-use crypto::{KeyPair, Ksp, KspEcdhKeyPair};
+use crypto::*;
 
 pub trait Authenticate {
     // In: entry public key, Out: secret
-    fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>>;
+    fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret>;
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -18,7 +18,7 @@ impl KeyStorageProvider {
     }
 }
 impl Authenticate for KeyStorageProvider {
-    fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
+    fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
         let key = KspEcdhKeyPair::open(self.0, &self.1)?;
         key.agree_and_derive(pk)
     }
@@ -33,12 +33,12 @@ enum AuthenticatorType {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Authenticator {
-    pk: Vec<u8>,
+    pk: PubKey,
     authenticator: AuthenticatorType,
 }
 
 impl Authenticator {
-    pub fn pk(&self) -> &[u8] {
+    pub fn pk(&self) -> &PubKey {
         &self.pk
     }
 
@@ -59,7 +59,7 @@ pub mod test {
     use crypto::EcdhKeyPair;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    pub struct Test(Vec<u8>);
+    pub struct Test(PrivKey);
     impl Test {
         pub fn new() -> error::Result<Authenticator> {
             let key = EcdhKeyPair::new()?;
@@ -70,7 +70,7 @@ pub mod test {
         }
     }
     impl Authenticate for Test {
-        fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
+        fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
             let sk = EcdhKeyPair::import(&self.0)?;
             sk.agree_and_derive(pk)
         }
@@ -85,8 +85,8 @@ mod tests {
     #[test]
     fn test_test_protect_unprotect() {
         let authenticator = test::Test::new().unwrap();
-        let entry = Entry::new(&authenticator, "john", "password").unwrap();
-        let decrypted = entry.decrypt(&authenticator).unwrap();
+        let entry = Entry::new(&authenticator, String::from("john"), "password").unwrap();
+        let decrypted = entry.decrypt_with(&authenticator).unwrap();
         assert_eq!("password", decrypted);
     }
 
@@ -94,8 +94,8 @@ mod tests {
     fn test_ksp_protect_unprotect() {
         let authenticator =
             KeyStorageProvider::new(Ksp::Software, String::from("testkey1")).unwrap();
-        let entry = Entry::new(&authenticator, "john", "password").unwrap();
-        let decrypted = entry.decrypt(&authenticator).unwrap();
+        let entry = Entry::new(&authenticator, String::from("john"), "password").unwrap();
+        let decrypted = entry.decrypt_with(&authenticator).unwrap();
         let key = KspEcdhKeyPair::open(Ksp::Software, "testkey1").unwrap();
         key.delete().unwrap();
         assert_eq!("password", decrypted);

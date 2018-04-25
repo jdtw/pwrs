@@ -14,9 +14,16 @@ pub use win32::ncrypt::Ksp;
 const MASTER_SECRET_LABEL: &'static str = "pwrs_master_secret";
 const DERIVED_KEYS_LABEL: &'static str = "pwrs_derived_keys";
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct PubKey(Vec<u8>);
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct PrivKey(Vec<u8>);
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct AgreedSecret(Vec<u8>);
+
 pub trait KeyPair {
-    fn pk(&self) -> error::Result<Vec<u8>>;
-    fn agree_and_derive(&self, pk: &[u8]) -> error::Result<Vec<u8>>;
+    fn pk(&self) -> error::Result<PubKey>;
+    fn agree_and_derive(&self, pk: &PubKey) -> error::Result<AgreedSecret>;
 }
 
 pub struct EcdhKeyPair {
@@ -29,62 +36,79 @@ impl EcdhKeyPair {
         Ok(EcdhKeyPair { key })
     }
 
-    pub fn import(sk: &[u8]) -> error::Result<Self> {
-        let key = bcrypt::import_key_pair(Algorithm::EcdhP256, Blob::EccPrivate, sk)?;
+    pub fn import(sk: &PrivKey) -> error::Result<Self> {
+        let key = bcrypt::import_key_pair(Algorithm::EcdhP256, Blob::EccPrivate, &sk.0)?;
         Ok(EcdhKeyPair { key })
     }
 
-    pub fn sk(&self) -> error::Result<Vec<u8>> {
-        Ok(bcrypt::export_key(&self.key, Blob::EccPrivate)?)
+    pub fn sk(&self) -> error::Result<PrivKey> {
+        Ok(PrivKey(bcrypt::export_key(&self.key, Blob::EccPrivate)?))
     }
 }
 
 impl KeyPair for EcdhKeyPair {
-    fn pk(&self) -> error::Result<Vec<u8>> {
-        Ok(bcrypt::export_key(&self.key, Blob::EccPublic)?)
+    fn pk(&self) -> error::Result<PubKey> {
+        Ok(PubKey(bcrypt::export_key(&self.key, Blob::EccPublic)?))
     }
 
-    fn agree_and_derive(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
-        let pk = bcrypt::import_key_pair(Algorithm::EcdhP256, Blob::EccPublic, pk)?;
+    fn agree_and_derive(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
+        let pk = bcrypt::import_key_pair(Algorithm::EcdhP256, Blob::EccPublic, &pk.0)?;
         let secret = bcrypt::secret_agreement(&self.key, &pk)?;
-        Ok(bcrypt::derive_key(&secret, MASTER_SECRET_LABEL)?)
+        Ok(AgreedSecret(bcrypt::derive_key(
+            &secret,
+            MASTER_SECRET_LABEL,
+        )?))
     }
 }
 
 // AES key 'k', HMAC secret 's'
+struct EncryptionKey(Vec<u8>);
+struct MacSecret(Vec<u8>);
 pub struct DerivedKeys {
-    k: Vec<u8>,
-    s: Vec<u8>,
+    k: EncryptionKey,
+    s: MacSecret,
 }
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct EncryptedBytes(Vec<u8>);
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Mac(Vec<u8>);
 
 impl DerivedKeys {
-    pub fn new(secret: &[u8]) -> error::Result<Self> {
-        let secret = bcrypt::generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, secret)?;
+    pub fn new(secret: &AgreedSecret) -> error::Result<Self> {
+        let secret = bcrypt::generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &secret.0)?;
         let keys = bcrypt::key_derivation(&secret, DERIVED_KEYS_LABEL, 64)?;
         let (k, s) = keys.split_at(32);
         Ok(DerivedKeys {
-            k: k.to_vec(),
-            s: s.to_vec(),
+            k: EncryptionKey(k.to_vec()),
+            s: MacSecret(s.to_vec()),
         })
     }
 
-    pub fn encrypt(&self, string: &str) -> error::Result<Vec<u8>> {
+    pub fn encrypt(&self, string: &str) -> error::Result<EncryptedBytes> {
         // It's safe to encrypt with a zero IV because we generate new keys
         // for every encryption.
-        let iv: [u8; 32] = [0; 32];
-        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k)?;
-        Ok(bcrypt::encrypt_data(&k, &iv, string.as_bytes())?)
+        let iv: [u8; 16] = [0; 16];
+        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k.0)?;
+        Ok(EncryptedBytes(bcrypt::encrypt_data(
+            &k,
+            &iv,
+            string.as_bytes(),
+        )?))
     }
 
-    pub fn decrypt(&self, bytes: &[u8]) -> error::Result<String> {
-        let iv: [u8; 32] = [0; 32];
-        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k)?;
-        let decrypted = bcrypt::decrypt_data(&k, &iv, bytes)?;
+    pub fn decrypt(&self, bytes: &EncryptedBytes) -> error::Result<String> {
+        let iv: [u8; 16] = [0; 16];
+        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k.0)?;
+        let decrypted = bcrypt::decrypt_data(&k, &iv, &bytes.0)?;
         Ok(String::from_utf8(decrypted)?)
     }
 
-    pub fn mac(&self, label: &str, data: &[u8]) -> error::Result<Vec<u8>> {
-        Ok(bcrypt::hmac_sha256_with_label(&self.s, &label, data)?)
+    pub fn mac(&self, label: &str, data: &EncryptedBytes) -> error::Result<Mac> {
+        Ok(Mac(bcrypt::hmac_sha256_with_label(
+            &self.s.0,
+            &label,
+            &data.0,
+        )?))
     }
 }
 
@@ -113,13 +137,16 @@ impl KspEcdhKeyPair {
 }
 
 impl KeyPair for KspEcdhKeyPair {
-    fn pk(&self) -> error::Result<Vec<u8>> {
-        Ok(ncrypt::export_key(&self.key, Blob::EccPublic)?)
+    fn pk(&self) -> error::Result<PubKey> {
+        Ok(PubKey(ncrypt::export_key(&self.key, Blob::EccPublic)?))
     }
 
-    fn agree_and_derive(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
-        let pk = ncrypt::import_key(&self.prov, Blob::EccPublic, pk)?;
+    fn agree_and_derive(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
+        let pk = ncrypt::import_key(&self.prov, Blob::EccPublic, &pk.0)?;
         let secret = ncrypt::secret_agreement(&self.key, &pk)?;
-        Ok(ncrypt::derive_key(&secret, MASTER_SECRET_LABEL)?)
+        Ok(AgreedSecret(ncrypt::derive_key(
+            &secret,
+            MASTER_SECRET_LABEL,
+        )?))
     }
 }
