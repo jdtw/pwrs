@@ -4,7 +4,7 @@ use std::result;
 
 #[derive(Debug)]
 pub struct Error {
-    api: String,
+    api: &'static str,
     error: i32,
 }
 
@@ -23,14 +23,14 @@ impl error::Error for Error {
 }
 
 impl Error {
-    pub fn new(api: &str, error: i32) -> Error {
+    pub fn new(api: &'static str, error: i32) -> Error {
         Error {
-            api: String::from(api),
+            api,
             error,
         }
     }
 
-    pub fn result<T>(api: &str, error: i32, result: T) -> Result<T> {
+    pub fn result<T>(api: &'static str, error: i32, result: T) -> Result<T> {
         if error != 0 {
             Err(Error::new(api, error))
         } else {
