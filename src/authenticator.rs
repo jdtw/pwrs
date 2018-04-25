@@ -85,9 +85,9 @@ mod tests {
     #[test]
     fn test_test_protect_unprotect() {
         let authenticator = test::Test::new().unwrap();
-        let entry = Entry::new(&authenticator, String::from("john"), "password").unwrap();
+        let entry = Entry::new(&authenticator, String::from("john"), "password🔐").unwrap();
         let decrypted = entry.decrypt_with(&authenticator).unwrap();
-        assert_eq!("password", decrypted);
+        assert_eq!("password🔐", decrypted);
     }
 
     #[test]
