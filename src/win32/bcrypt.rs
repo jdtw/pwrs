@@ -272,7 +272,7 @@ pub fn gen_random(size: usize) -> win32::Result<Vec<u8>> {
 
 pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> win32::Result<Vec<u8>> {
     unsafe {
-        let mut iv: Vec<u8> = iv.iter().cloned().collect();
+        let mut iv = iv.to_vec();
         let mut result_byte_count = 0;
 
         let status = BCryptEncrypt(

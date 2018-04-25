@@ -1,6 +1,6 @@
 use error;
-use crypto::{DerivedKeys, EcdhKeyPair};
-use authenticator::{Authenticate, Authenticator};
+use crypto::{DerivedKeys, EcdhKeyPair, KeyPair};
+use authenticator::Authenticator;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
@@ -11,9 +11,13 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn new(pk: &[u8], username: &str, password: &str) -> error::Result<Entry> {
+    pub fn new(
+        authenticator: &Authenticator,
+        username: &str,
+        password: &str,
+    ) -> error::Result<Entry> {
         let ephemeral = EcdhKeyPair::new()?;
-        let secret = ephemeral.agree_and_derive(pk)?;
+        let secret = ephemeral.agree_and_derive(authenticator.pk())?;
         let keys = DerivedKeys::new(&secret)?;
         let encrypted_password = keys.encrypt(password)?;
         let mac = keys.mac(username, &encrypted_password)?;
@@ -27,10 +31,11 @@ impl Entry {
     }
 
     pub fn decrypt(&self, authenticator: &Authenticator) -> error::Result<String> {
-        let secret = authenticator.authenticate(&self.pk)?;
+        let secret = authenticator.authenticator().authenticate(&self.pk)?;
         let keys = DerivedKeys::new(&secret)?;
         let mac = keys.mac(&self.username, &self.encrypted_password)?;
         if mac != self.mac {
+            assert_eq!(mac, self.mac);
             panic!("MAC verification failed!");
         }
         keys.decrypt(&self.encrypted_password)

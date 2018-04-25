@@ -19,6 +19,7 @@ impl CloseHandle for Object {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
 pub enum Ksp {
     Software,
     SmartCard,

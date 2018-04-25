@@ -1,57 +1,80 @@
 use error;
-use win32::ncrypt;
-#[cfg(test)]
-use crypto::EcdhKeyPair;
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum Authenticator {
-    #[cfg(test)]
-    Test(Vec<u8>),
-    Software(String),
-    SmartCard(String),
-}
+use crypto::{KeyPair, Ksp, KspEcdhKeyPair};
 
 pub trait Authenticate {
-    // TODO: Should probably make the authenticator carry around its own
-    // public key.
+    // In: entry public key, Out: secret
     fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>>;
 }
 
-impl Authenticate for Authenticator {
-    // Authenticate takes in a public key and returns the result of
-    // ECDH key agreement with that key, using the authenticator's private
-    // key.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct KeyStorageProvider(Ksp, String);
+impl KeyStorageProvider {
+    pub fn new(ksp: Ksp, key_name: String) -> error::Result<Authenticator> {
+        let key = KspEcdhKeyPair::new(ksp, &key_name)?;
+        Ok(Authenticator {
+            pk: key.pk()?,
+            authenticator: AuthenticatorType::Ksp(KeyStorageProvider(ksp, key_name)),
+        })
+    }
+}
+impl Authenticate for KeyStorageProvider {
     fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
-        match self {
+        let key = KspEcdhKeyPair::open(self.0, &self.1)?;
+        key.agree_and_derive(pk)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+enum AuthenticatorType {
+    #[cfg(test)]
+    Test(test::Test),
+    Ksp(KeyStorageProvider),
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Authenticator {
+    pk: Vec<u8>,
+    authenticator: AuthenticatorType,
+}
+
+impl Authenticator {
+    pub fn pk(&self) -> &[u8] {
+        &self.pk
+    }
+
+    // Authenticate takes in a public key and returns the result of ECDH
+    // key agreement with that key, using the authenticator's private key.
+    pub fn authenticator(&self) -> &Authenticate {
+        match &self.authenticator {
             #[cfg(test)]
-            &Authenticator::Test(ref sk) => Ok(tests::authenticate(sk, pk)),
-            &Authenticator::Software(ref _key_name) => panic!("notimpl"),
-            &Authenticator::SmartCard(ref _key_name) => panic!("notimpl"),
+            &AuthenticatorType::Test(ref test) => test,
+            &AuthenticatorType::Ksp(ref ksp) => ksp,
         }
     }
 }
 
 #[cfg(test)]
-pub fn new_test_authenticator() -> error::Result<(Vec<u8>, Authenticator)> {
-    let key = EcdhKeyPair::new()?;
-    Ok((key.pk().unwrap(), Authenticator::Test(key.sk().unwrap())))
-}
+pub mod test {
+    use super::*;
+    use crypto::EcdhKeyPair;
 
-pub fn new_software_authenticator() -> error::Result<(Vec<u8>, Authenticator)> {
-    new_ksp_authenticator(ncrypt::Ksp::Software)
-}
-
-pub fn new_smart_card_authenticator() -> error::Result<(Vec<u8>, Authenticator)> {
-    new_ksp_authenticator(ncrypt::Ksp::SmartCard)
-}
-
-fn new_ksp_authenticator(_ksp: ncrypt::Ksp) -> error::Result<(Vec<u8>, Authenticator)> {
-    // TODO:
-    // 1. Generate key name
-    // 2. Create persisted key
-    // 3. Export public key
-    // return (pk, Authenticator::Type(key_name))
-    panic!("notimpl");
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    pub struct Test(Vec<u8>);
+    impl Test {
+        pub fn new() -> error::Result<Authenticator> {
+            let key = EcdhKeyPair::new()?;
+            Ok(Authenticator {
+                pk: key.pk()?,
+                authenticator: AuthenticatorType::Test(Test(key.sk()?)),
+            })
+        }
+    }
+    impl Authenticate for Test {
+        fn authenticate(&self, pk: &[u8]) -> error::Result<Vec<u8>> {
+            let sk = EcdhKeyPair::import(&self.0)?;
+            sk.agree_and_derive(pk)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -59,16 +82,22 @@ mod tests {
     use super::*;
     use entry::Entry;
 
-    pub fn authenticate(sk: &[u8], pk: &[u8]) -> Vec<u8> {
-        let sk = EcdhKeyPair::import(sk).unwrap();
-        sk.agree_and_derive(pk).unwrap()
+    #[test]
+    fn test_test_protect_unprotect() {
+        let authenticator = test::Test::new().unwrap();
+        let entry = Entry::new(&authenticator, "john", "password").unwrap();
+        let decrypted = entry.decrypt(&authenticator).unwrap();
+        assert_eq!("password", decrypted);
     }
 
     #[test]
-    fn test_protect_unprotect() {
-        let (pk, authenticator) = new_test_authenticator().unwrap();
-        let entry = Entry::new(&pk, "john", "password").unwrap();
+    fn test_ksp_protect_unprotect() {
+        let authenticator =
+            KeyStorageProvider::new(Ksp::Software, String::from("testkey1")).unwrap();
+        let entry = Entry::new(&authenticator, "john", "password").unwrap();
         let decrypted = entry.decrypt(&authenticator).unwrap();
+        let key = KspEcdhKeyPair::open(Ksp::Software, "testkey1").unwrap();
+        key.delete().unwrap();
         assert_eq!("password", decrypted);
     }
 }

@@ -19,15 +19,13 @@ use std::io::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
-    pk: Vec<u8>,
     authenticator: Authenticator,
     entries: HashMap<String, Entry>,
 }
 
 impl Vault {
-    pub fn new(pk: Vec<u8>, authenticator: Authenticator) -> Vault {
+    pub fn new(authenticator: Authenticator) -> Vault {
         Vault {
-            pk,
             authenticator,
             entries: HashMap::new(),
         }
@@ -39,7 +37,7 @@ impl Vault {
         username: &str,
         password: &str,
     ) -> error::Result<&Entry> {
-        let entry = Entry::new(&self.pk, username, password)?;
+        let entry = Entry::new(&self.authenticator, username, password)?;
         self.entries.insert(String::from(key), entry);
         Ok(&self.entries[key])
     }
