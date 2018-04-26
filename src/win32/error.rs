@@ -24,10 +24,7 @@ impl error::Error for Error {
 
 impl Error {
     pub fn new(api: &'static str, error: i32) -> Error {
-        Error {
-            api,
-            error,
-        }
+        Error { api, error }
     }
 
     pub fn result<T>(api: &'static str, error: i32, result: T) -> Result<T> {

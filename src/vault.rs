@@ -12,6 +12,21 @@ pub struct Vault {
     entries: HashMap<String, Entry>,
 }
 
+pub struct EntryRef<'a> {
+    authenticator: &'a Authenticator,
+    entry: &'a Entry,
+}
+
+impl<'a> EntryRef<'a> {
+    pub fn username(&self) -> &str {
+        self.entry.username()
+    }
+
+    pub fn password(&self) -> error::Result<String> {
+        self.entry.decrypt_with(self.authenticator)
+    }
+}
+
 impl Vault {
     pub fn new(authenticator: Authenticator) -> Vault {
         Vault {
@@ -20,11 +35,11 @@ impl Vault {
         }
     }
 
-    pub fn write<W: Write>(&self, writer: W) -> error::Result<()> {
-        Ok(serde_json::to_writer(writer, &self)?)
+    pub fn to_writer<W: Write>(&self, writer: W) -> error::Result<()> {
+        Ok(serde_json::to_writer_pretty(writer, &self)?)
     }
 
-    pub fn read<R: Read>(reader: R) -> error::Result<Vault> {
+    pub fn from_reader<R: Read>(reader: R) -> error::Result<Vault> {
         Ok(serde_json::from_reader(reader)?)
     }
 
@@ -38,18 +53,19 @@ impl Vault {
         Ok(self.entries.insert(key, entry))
     }
 
-    pub fn get(&self, key: &str) -> error::Result<Option<(String, String)>> {
-        match self.entries.get(key) {
-            Some(entry) => {
-                let password = entry.decrypt_with(&self.authenticator)?;
-                Ok(Some((String::from(entry.username()), password)))
-            }
-            None => Ok(None),
-        }
+    pub fn get(&self, key: &str) -> Option<EntryRef> {
+        self.entries.get(key).map(|entry| EntryRef {
+            authenticator: &self.authenticator,
+            entry,
+        })
     }
 
-    pub fn remove(&mut self, key: &str) {
-        self.entries.remove(key);
+    pub fn remove(&mut self, key: &str) -> Option<Entry> {
+        self.entries.remove(key)
+    }
+
+    pub fn authenticator(&self) -> &Authenticator {
+        &self.authenticator
     }
 }
 
@@ -65,9 +81,37 @@ mod tests {
         vault
             .insert(String::from("key"), String::from("username"), "password")
             .unwrap();
-        let (username, password) = vault.get("key").unwrap().unwrap();
-        assert_eq!(username, "username");
-        assert_eq!(password, "password");
+
+        {
+            let entry = vault.get("key").unwrap();
+            let username = entry.username();
+            assert_eq!(username, "username");
+            let password = entry.password().unwrap();
+            assert_eq!(password, "password");
+        }
+        // And make sure the entry didn't go anywhere
+        {
+            let entry = vault.get("key").unwrap();
+            let username = entry.username();
+            assert_eq!(username, "username");
+            let password = entry.password().unwrap();
+            assert_eq!(password, "password");
+        }
+        // Replace the entry
+        vault
+            .insert(String::from("key"), String::from("username2"), "password2")
+            .unwrap();
+        {
+            let entry = vault.get("key").unwrap();
+            let username = entry.username();
+            assert_eq!(username, "username2");
+            let password = entry.password().unwrap();
+            assert_eq!(password, "password2");
+        }
+        // Now remove it
+        let removed = vault.remove("key").unwrap();
+        assert_eq!(removed.username(), "username2");
+        assert!(vault.get("key").is_none());
     }
 
     #[test]
@@ -80,8 +124,16 @@ mod tests {
         vault
             .insert(String::from("example.com"), String::from("user"), "pass")
             .unwrap();
-        let serialized = serde_json::to_string(&vault).unwrap();
-        let deserialized: Vault = serde_json::from_str(&serialized).unwrap();
+
+        let mut buffer = Vec::new();
+        vault.to_writer(buffer.by_ref()).unwrap();
+        let deserialized = Vault::from_reader(&buffer[..]).unwrap();
         assert_eq!(deserialized, vault);
+
+        let entry = vault.get("foo.com").unwrap();
+        let username = entry.username();
+        assert_eq!(username, "foo");
+        let password = entry.password().unwrap();
+        assert_eq!(password, "bar");
     }
 }

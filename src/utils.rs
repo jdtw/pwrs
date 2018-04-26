@@ -20,7 +20,13 @@ pub trait ToHex {
 
 impl ToHex for Vec<u8> {
     fn to_hex(&self) -> String {
-        self::to_hex(&self)
+        self::to_hex(self)
+    }
+}
+
+impl<'a> ToHex for &'a [u8] {
+    fn to_hex(&self) -> String {
+        to_hex(self)
     }
 }
 
