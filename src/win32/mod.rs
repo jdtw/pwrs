@@ -11,3 +11,5 @@ pub use self::lpcwstr::ToLpcwstr;
 
 pub mod ncrypt;
 pub mod bcrypt;
+
+pub mod credui;
