@@ -14,6 +14,12 @@ pub use win32::ncrypt::Ksp;
 const MASTER_SECRET_LABEL: &'static str = "pwrs_master_secret";
 const DERIVED_KEYS_LABEL: &'static str = "pwrs_derived_keys";
 
+// Right now, the public key blob and private key blobs are just
+// BCrypt public and private key structs. If we ever want to be
+// cross-platform, or support other crypto libraries, we should
+// really extract the actual curve points. Thankfully, if we ever
+// want to upgrade, it should be fairly easy, since each of the
+// BCrypt blobs begin with a magic value we can look for.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct PubKey(Vec<u8>);
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

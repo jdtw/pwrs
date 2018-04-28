@@ -41,11 +41,8 @@ impl ToString for Ksp {
 pub fn open_storage_provider(ksp: Ksp) -> win32::Result<Handle<Object>> {
     unsafe {
         let mut prov = Handle::new();
-        let status = NCryptOpenStorageProvider(
-            prov.put(),
-            ksp.to_string().to_lpcwstr().as_ptr(),
-            0,
-        );
+        let status =
+            NCryptOpenStorageProvider(prov.put(), ksp.to_string().to_lpcwstr().as_ptr(), 0);
         win32::Error::result("NCryptOpenStorageProvider", status, prov)
     }
 }
@@ -53,13 +50,7 @@ pub fn open_storage_provider(ksp: Ksp) -> win32::Result<Handle<Object>> {
 pub fn open_key(prov: &Handle<Object>, key_name: &str) -> win32::Result<Handle<Object>> {
     unsafe {
         let mut key = Handle::new();
-        let status = NCryptOpenKey(
-            prov.get(),
-            key.put(),
-            key_name.to_lpcwstr().as_ptr(),
-            0,
-            0,
-        );
+        let status = NCryptOpenKey(prov.get(), key.put(), key_name.to_lpcwstr().as_ptr(), 0, 0);
         win32::Error::result("NCryptOpenKey", status, key)
     }
 }

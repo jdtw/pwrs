@@ -3,7 +3,7 @@ use win32::ToLpcwstr;
 use win32::winapi::um::wincred::*;
 use win32::winapi::um::combaseapi::CoTaskMemFree;
 use win32::winapi::um::errhandlingapi::GetLastError;
-use win32::winapi::shared::winerror::ERROR_INSUFFICIENT_BUFFER;
+use win32::winapi::shared::winerror::{ERROR_CANCELLED, ERROR_INSUFFICIENT_BUFFER};
 use win32::winapi::ctypes::c_void;
 use std::mem;
 use std::ptr;
@@ -11,12 +11,16 @@ use std::ptr::null_mut;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
+#[derive(Debug, PartialEq)]
 pub struct Credentials {
     username: String,
     password: String,
 }
 
 impl Credentials {
+    pub fn new(username: String, password: String) -> Self {
+        Credentials { username, password }
+    }
     pub fn username(&self) -> &str {
         &self.username
     }
@@ -38,7 +42,10 @@ impl AuthBuffer {
 }
 // TODO: impl Drop for AuthBuffer and secure zero it
 
-pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> win32::Result<AuthBuffer> {
+pub fn prompt_for_windows_credentials(
+    caption: &str,
+    message: &str,
+) -> win32::Result<Option<AuthBuffer>> {
     unsafe {
         let message = message.to_lpcwstr();
         let caption = caption.to_lpcwstr();
@@ -63,6 +70,9 @@ pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> win32::Re
             null_mut(),
             CREDUIWIN_GENERIC,
         );
+        if error == ERROR_CANCELLED {
+            return Ok(None);
+        }
         if error != 0 {
             return Err(win32::Error::new(
                 "CredUIPromptForWindowsCredentialsW",
@@ -72,7 +82,7 @@ pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> win32::Re
         let copy = AuthBuffer::new(auth_buffer, auth_buffer_byte_count as usize);
         // TODO: Secure zero!
         CoTaskMemFree(auth_buffer);
-        Ok(copy)
+        Ok(Some(copy))
     }
 }
 
@@ -134,13 +144,24 @@ mod tests {
 
     #[test]
     #[ignore]
+    // Run this with `cargo test -- --test-threads=1 --ignored`.
+    // For the UI tests, it will only work on a single thread.
     fn test_credui_prompt() {
         let buffy = prompt_for_windows_credentials(
             "test_credui_prompt",
             "Enter \"username\" and \"password\" in the prompts.",
-        ).unwrap();
+        ).unwrap()
+            .unwrap();
         let creds = unpack_authentication_buffer(buffy).unwrap();
         assert_eq!(creds.username(), "username");
         assert_eq!(creds.password(), "password");
+    }
+
+    #[test]
+    #[ignore]
+    fn test_cancel_prompt() {
+        let buffy =
+            prompt_for_windows_credentials("test_cancel_prompt", "Cancel this prompt!").unwrap();
+        assert!(buffy.is_none());
     }
 }

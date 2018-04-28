@@ -12,6 +12,7 @@ pub enum Error {
     IoError(io::Error),
     FromUtf8Error(string::FromUtf8Error),
     Win32Error(win32::Error),
+    UserCancelled,
 }
 
 impl fmt::Display for Error {
@@ -21,6 +22,7 @@ impl fmt::Display for Error {
             &Error::IoError(ref e) => e.fmt(f),
             &Error::FromUtf8Error(ref e) => e.fmt(f),
             &Error::Win32Error(ref e) => e.fmt(f),
+            &Error::UserCancelled => write!(f, "User cancelled"),
         }
     }
 }
@@ -32,6 +34,7 @@ impl error::Error for Error {
             &Error::IoError(ref e) => e.description(),
             &Error::FromUtf8Error(ref e) => e.description(),
             &Error::Win32Error(ref e) => e.description(),
+            &Error::UserCancelled => "Cancelled",
         }
     }
 }

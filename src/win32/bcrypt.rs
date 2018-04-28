@@ -55,12 +55,8 @@ pub fn generate_key_pair(alg: Algorithm) -> win32::Result<Handle<Key>> {
             Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALG_HANDLE,
         };
         let mut key = Handle::new();
-        let status = BCryptGenerateKeyPair(
-            alg,
-            key.put() as *mut usize as *mut BCRYPT_HANDLE,
-            0,
-            0,
-        );
+        let status =
+            BCryptGenerateKeyPair(alg, key.put() as *mut usize as *mut BCRYPT_HANDLE, 0, 0);
         if status != 0 {
             return Err(win32::Error::new("BCryptGenerateKeyPair", status));
         }
