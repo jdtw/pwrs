@@ -17,7 +17,7 @@ impl<T: CloseHandle> Handle<T> {
         }
     }
 
-    pub fn as_out_param(&mut self) -> &mut usize {
+    pub fn put(&mut self) -> &mut usize {
         self.reset();
         &mut self.handle
     }

@@ -57,7 +57,7 @@ pub fn generate_key_pair(alg: Algorithm) -> win32::Result<Handle<Key>> {
         let mut key = Handle::new();
         let status = BCryptGenerateKeyPair(
             alg,
-            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            key.put() as *mut usize as *mut BCRYPT_HANDLE,
             0,
             0,
         );
@@ -93,7 +93,7 @@ pub fn import_key_pair(alg: Algorithm, blob: Blob, bytes: &[u8]) -> win32::Resul
             alg,
             null_mut(),
             blob.to_string().to_lpcwstr().as_ptr(),
-            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            key.put() as *mut usize as *mut BCRYPT_HANDLE,
             bytes.as_ptr() as *const u8 as *mut u8,
             bytes.len() as u32,
             0,
@@ -144,7 +144,7 @@ pub fn secret_agreement(sk: &Handle<Key>, pk: &Handle<Key>) -> win32::Result<Han
         let status = BCryptSecretAgreement(
             sk.get() as BCRYPT_HANDLE,
             pk.get() as BCRYPT_HANDLE,
-            secret.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            secret.put() as *mut usize as *mut BCRYPT_HANDLE,
             0,
         );
         win32::Error::result("BCryptSecretAgreement", status, secret)
@@ -209,7 +209,7 @@ pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> win32::Result<Handl
         let mut key = Handle::new();
         let status = BCryptGenerateSymmetricKey(
             alg_handle,
-            key.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+            key.put() as *mut usize as *mut BCRYPT_HANDLE,
             null_mut(),
             0,
             secret.as_ptr() as *const u8 as *mut u8,
@@ -383,7 +383,7 @@ impl<'a> Hash<'a> {
             };
             let status = BCryptCreateHash(
                 alg_handle,
-                hash.handle.as_out_param() as *mut usize as *mut BCRYPT_HANDLE,
+                hash.handle.put() as *mut usize as *mut BCRYPT_HANDLE,
                 null_mut(),
                 0,
                 secret as *const u8 as *mut u8,

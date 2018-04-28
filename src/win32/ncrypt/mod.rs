@@ -42,7 +42,7 @@ pub fn open_storage_provider(ksp: Ksp) -> win32::Result<Handle<Object>> {
     unsafe {
         let mut prov = Handle::new();
         let status = NCryptOpenStorageProvider(
-            prov.as_out_param(),
+            prov.put(),
             ksp.to_string().to_lpcwstr().as_ptr(),
             0,
         );
@@ -55,7 +55,7 @@ pub fn open_key(prov: &Handle<Object>, key_name: &str) -> win32::Result<Handle<O
         let mut key = Handle::new();
         let status = NCryptOpenKey(
             prov.get(),
-            key.as_out_param(),
+            key.put(),
             key_name.to_lpcwstr().as_ptr(),
             0,
             0,
@@ -78,7 +78,7 @@ pub fn create_persisted_key(
         };
         let status = NCryptCreatePersistedKey(
             provider.get(),
-            key.as_out_param(),
+            key.put(),
             algo.to_string().to_lpcwstr().as_ptr(),
             name_ptr,
             0,
@@ -114,7 +114,7 @@ pub fn import_key(
             0,
             blob.to_string().to_lpcwstr().as_ptr(),
             null_mut(),
-            key.as_out_param(),
+            key.put(),
             bytes.as_ptr(),
             bytes.len() as u32,
             0,
@@ -167,7 +167,7 @@ pub fn secret_agreement(
 ) -> win32::Result<Handle<Object>> {
     unsafe {
         let mut secret = Handle::new();
-        let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.as_out_param(), 0);
+        let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.put(), 0);
         win32::Error::result("NCryptSecretAgreement", status, secret)
     }
 }
