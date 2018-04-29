@@ -1,9 +1,9 @@
-use error;
+use error::*;
 use win32::credui;
 pub use win32::credui::Credentials;
 
 pub trait Prompt {
-    fn prompt(&self) -> error::Result<Credentials>;
+    fn prompt(&self) -> Result<Credentials>;
 }
 
 pub struct StaticPrompt {
@@ -18,7 +18,7 @@ impl StaticPrompt {
 }
 
 impl Prompt for StaticPrompt {
-    fn prompt(&self) -> error::Result<Credentials> {
+    fn prompt(&self) -> Result<Credentials> {
         Ok(Credentials::new(
             self.username.clone(),
             self.password.clone(),
@@ -38,12 +38,12 @@ impl<'a> UIPrompt<'a> {
 }
 
 impl<'a> Prompt for UIPrompt<'a> {
-    fn prompt(&self) -> error::Result<Credentials> {
-        let auth_buffer = credui::prompt_for_windows_credentials(self.caption, self.message)?;
-        match auth_buffer {
-            Some(auth_buffer) => Ok(credui::unpack_authentication_buffer(auth_buffer)?),
-            None => Err(error::Error::UserCancelled),
-        }
+    fn prompt(&self) -> Result<Credentials> {
+        let auth_buffer = credui::prompt_for_windows_credentials(self.caption, self.message)
+            .chain_err(|| "Prompt for credentials failed")?;
+        let credentials = credui::unpack_authentication_buffer(auth_buffer)
+            .chain_err(|| "Unpack authentication buffer failed")?;
+        Ok(credentials)
     }
 }
 
@@ -56,16 +56,5 @@ mod tests {
     fn test_ui_prompt() {
         let prompt = UIPrompt::new("test_ui_prompt", "Blah blah blah blah");
         prompt.prompt().unwrap();
-    }
-
-    #[test]
-    #[ignore]
-    fn test_cancel_prompt() {
-        let prompt = UIPrompt::new("test_cancel_prompt", "Cancel this one, too.");
-        match prompt.prompt() {
-            Err(error::Error::UserCancelled) => (),
-            Err(e) => panic!("Unexpected error {}", e),
-            _ => panic!("Cancel the prompt!"),
-        }
     }
 }

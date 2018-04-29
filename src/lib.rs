@@ -1,8 +1,13 @@
+#![recursion_limit = "1024"]
+
 extern crate serde;
 extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
+
+#[macro_use]
+extern crate error_chain;
 
 pub mod win32;
 pub mod utils;

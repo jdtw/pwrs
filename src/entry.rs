@@ -1,4 +1,4 @@
-use error;
+use error::*;
 use crypto::*;
 use authenticator::Authenticator;
 
@@ -11,11 +11,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn new(
-        authenticator: &Authenticator,
-        username: String,
-        password: &str,
-    ) -> error::Result<Entry> {
+    pub fn new(authenticator: &Authenticator, username: String, password: &str) -> Result<Entry> {
         let ephemeral = EcdhKeyPair::new()?;
         let secret = ephemeral.agree_and_derive(authenticator.pk())?;
         let keys = DerivedKeys::new(&secret)?;
@@ -30,13 +26,12 @@ impl Entry {
         })
     }
 
-    pub fn decrypt_with(&self, authenticator: &Authenticator) -> error::Result<String> {
+    pub fn decrypt_with(&self, authenticator: &Authenticator) -> Result<String> {
         let secret = authenticator.authenticator().authenticate(&self.pk)?;
         let keys = DerivedKeys::new(&secret)?;
         let mac = keys.mac(&self.username, &self.encrypted_password)?;
         if mac != self.mac {
-            // TODO: Make a DecryptionError type
-            panic!("MAC verification failed!");
+            bail!(ErrorKind::MacVerificationFailed);
         }
         keys.decrypt(&self.encrypted_password)
     }

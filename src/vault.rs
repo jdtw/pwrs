@@ -1,4 +1,4 @@
-use error;
+use error::*;
 use serde_json;
 use entry::Entry;
 use authenticator::Authenticator;
@@ -22,7 +22,7 @@ impl<'a> EntryRef<'a> {
         self.entry.username()
     }
 
-    pub fn password(&self) -> error::Result<String> {
+    pub fn password(&self) -> Result<String> {
         self.entry.decrypt_with(self.authenticator)
     }
 }
@@ -35,12 +35,12 @@ impl Vault {
         }
     }
 
-    pub fn to_writer<W: Write>(&self, writer: W) -> error::Result<()> {
-        Ok(serde_json::to_writer_pretty(writer, &self)?)
+    pub fn to_writer<W: Write>(&self, writer: W) -> Result<()> {
+        Ok(serde_json::to_writer_pretty(writer, &self).chain_err(|| "Serialize to JSON failed")?)
     }
 
-    pub fn from_reader<R: Read>(reader: R) -> error::Result<Vault> {
-        Ok(serde_json::from_reader(reader)?)
+    pub fn from_reader<R: Read>(reader: R) -> Result<Vault> {
+        Ok(serde_json::from_reader(reader).chain_err(|| "Deserialze from JSON failed")?)
     }
 
     pub fn insert(
@@ -48,7 +48,7 @@ impl Vault {
         key: String,
         username: String,
         password: &str,
-    ) -> error::Result<Option<Entry>> {
+    ) -> Result<Option<Entry>> {
         let entry = Entry::new(&self.authenticator, username, password)?;
         Ok(self.entries.insert(key, entry))
     }
