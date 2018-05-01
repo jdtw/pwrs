@@ -49,7 +49,7 @@ impl ToString for Algorithm {
     }
 }
 
-pub fn generate_key_pair(alg: Algorithm) -> Result<Handle<Key>> {
+pub fn generate_key_pair(alg: Algorithm) -> Result<Handle<Key>, PwrsError> {
     unsafe {
         let alg = match alg {
             Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALG_HANDLE,
@@ -58,11 +58,11 @@ pub fn generate_key_pair(alg: Algorithm) -> Result<Handle<Key>> {
         let status =
             BCryptGenerateKeyPair(alg, key.put() as *mut usize as *mut BCRYPT_HANDLE, 0, 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptGenerateKeyPair", status));
         }
         let status = BCryptFinalizeKeyPair(key.get() as BCRYPT_HANDLE, 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptFinalizeKeyPair", status));
         }
         Ok(key)
     }
@@ -82,7 +82,7 @@ impl ToString for Blob {
     }
 }
 
-pub fn import_key_pair(alg: Algorithm, blob: Blob, bytes: &[u8]) -> Result<Handle<Key>> {
+pub fn import_key_pair(alg: Algorithm, blob: Blob, bytes: &[u8]) -> Result<Handle<Key>, PwrsError> {
     unsafe {
         let alg = match alg {
             Algorithm::EcdhP256 => BCRYPT_ECDH_P256_ALG_HANDLE,
@@ -98,13 +98,13 @@ pub fn import_key_pair(alg: Algorithm, blob: Blob, bytes: &[u8]) -> Result<Handl
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptImportKeyPair", status));
         }
         Ok(key)
     }
 }
 
-pub fn export_key(key: &Handle<Key>, blob: Blob) -> Result<Vec<u8>> {
+pub fn export_key(key: &Handle<Key>, blob: Blob) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let blob_bytes = blob.to_string().to_lpcwstr();
         let mut byte_count: u32 = 0;
@@ -118,7 +118,7 @@ pub fn export_key(key: &Handle<Key>, blob: Blob) -> Result<Vec<u8>> {
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptExportKey", status));
         }
 
         let mut output = Vec::with_capacity(byte_count as usize);
@@ -132,7 +132,7 @@ pub fn export_key(key: &Handle<Key>, blob: Blob) -> Result<Vec<u8>> {
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptExportKey", status));
         }
 
         output.set_len(byte_count as usize);
@@ -140,7 +140,7 @@ pub fn export_key(key: &Handle<Key>, blob: Blob) -> Result<Vec<u8>> {
     }
 }
 
-pub fn secret_agreement(sk: &Handle<Key>, pk: &Handle<Key>) -> Result<Handle<Secret>> {
+pub fn secret_agreement(sk: &Handle<Key>, pk: &Handle<Key>) -> Result<Handle<Secret>, PwrsError> {
     unsafe {
         let mut secret = Handle::new();
         let status = BCryptSecretAgreement(
@@ -150,13 +150,13 @@ pub fn secret_agreement(sk: &Handle<Key>, pk: &Handle<Key>) -> Result<Handle<Sec
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptSecretAgreement", status));
         }
         Ok(secret)
     }
 }
 
-pub fn derive_key(secret: &Handle<Secret>, label: &str) -> Result<Vec<u8>> {
+pub fn derive_key(secret: &Handle<Secret>, label: &str) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let mut sha2 = BCRYPT_SHA256_ALGORITHM.to_lpcwstr();
         let mut label = label.to_lpcwstr();
@@ -190,7 +190,7 @@ pub fn derive_key(secret: &Handle<Secret>, label: &str) -> Result<Vec<u8>> {
             KDF_USE_SECRET_AS_HMAC_KEY_FLAG,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptDeriveKey", status));
         }
         output.set_len(byte_count as usize);
         Ok(output)
@@ -202,13 +202,13 @@ pub enum SymAlg {
     Aes256Cbc,
 }
 
-pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> Result<Handle<Key>> {
+pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> Result<Handle<Key>, PwrsError> {
     let (alg_handle, expected_len) = match alg {
         SymAlg::Sp800108CtrHmacKdf => (BCRYPT_SP800108_CTR_HMAC_ALG_HANDLE, 32),
         SymAlg::Aes256Cbc => (BCRYPT_AES_CBC_ALG_HANDLE, 32),
     };
     if secret.len() != expected_len {
-        bail!("Unexpected secret length")
+        return Err(PwrsError::BufferTooSmall(expected_len, secret.len()));
     }
     unsafe {
         let mut key = Handle::new();
@@ -222,13 +222,17 @@ pub fn generate_symmetric_key(alg: SymAlg, secret: &[u8]) -> Result<Handle<Key>>
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptGenerateSymmetricKey", status));
         }
         Ok(key)
     }
 }
 
-pub fn key_derivation(key: &Handle<Key>, label: &str, output_len: usize) -> Result<Vec<u8>> {
+pub fn key_derivation(
+    key: &Handle<Key>,
+    label: &str,
+    output_len: usize,
+) -> Result<Vec<u8>, PwrsError> {
     let label_bytes = label.to_lpcwstr();
     let mut buffer = BCryptBuffer {
         BufferType: KDF_LABEL,
@@ -254,14 +258,14 @@ pub fn key_derivation(key: &Handle<Key>, label: &str, output_len: usize) -> Resu
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptKeyDerivation", status));
         }
         output.set_len(result_byte_count as usize);
         Ok(output)
     }
 }
 
-pub fn gen_random(size: usize) -> Result<Vec<u8>> {
+pub fn gen_random(size: usize) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let mut random = Vec::with_capacity(size);
         let status = BCryptGenRandom(
@@ -271,14 +275,14 @@ pub fn gen_random(size: usize) -> Result<Vec<u8>> {
             BCRYPT_USE_SYSTEM_PREFERRED_RNG,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptGenRandom", status));
         }
         random.set_len(size);
         Ok(random)
     }
 }
 
-pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let mut iv = iv.to_vec();
         let mut result_byte_count = 0;
@@ -296,7 +300,7 @@ pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
             BCRYPT_BLOCK_PADDING,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptEncrypt", status));
         }
 
         let mut output = Vec::with_capacity(result_byte_count as usize);
@@ -313,7 +317,7 @@ pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
             BCRYPT_BLOCK_PADDING,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptEncrypt", status));
         }
 
         output.set_len(result_byte_count as usize);
@@ -321,7 +325,7 @@ pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
     }
 }
 
-pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let mut iv: Vec<u8> = iv.iter().cloned().collect();
         let mut result_byte_count = 0;
@@ -339,7 +343,7 @@ pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
             BCRYPT_BLOCK_PADDING,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptDecrypt", status));
         }
 
         let mut output = Vec::with_capacity(result_byte_count as usize);
@@ -356,7 +360,7 @@ pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
             BCRYPT_BLOCK_PADDING,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("BCryptDecrypt", status));
         }
 
         output.set_len(result_byte_count as usize);
@@ -376,7 +380,7 @@ pub struct Hash<'a> {
 }
 
 impl<'a> Hash<'a> {
-    pub fn new(alg: HashAlg) -> Result<Hash> {
+    pub fn new(alg: HashAlg) -> Result<Hash, PwrsError> {
         unsafe {
             let mut hash = Hash {
                 handle: Handle::new(),
@@ -399,13 +403,13 @@ impl<'a> Hash<'a> {
                 0,
             );
             if status != 0 {
-                bail!(ErrorKind::Win32(status));
+                return Err(PwrsError::Win32Error("BCryptCreateHash", status));
             }
             Ok(hash)
         }
     }
 
-    pub fn hash_data(&self, data: &[u8]) -> Result<()> {
+    pub fn hash_data(&self, data: &[u8]) -> Result<(), PwrsError> {
         unsafe {
             let status = BCryptHashData(
                 self.handle.get() as BCRYPT_HANDLE,
@@ -414,13 +418,13 @@ impl<'a> Hash<'a> {
                 0,
             );
             if status != 0 {
-                bail!(ErrorKind::Win32(status));
+                return Err(PwrsError::Win32Error("BCryptHashData", status));
             }
             Ok(())
         }
     }
 
-    pub fn finish_hash(self) -> Result<Vec<u8>> {
+    pub fn finish_hash(self) -> Result<Vec<u8>, PwrsError> {
         unsafe {
             let output_len = match self.alg {
                 HashAlg::Sha1 => 20,
@@ -435,7 +439,7 @@ impl<'a> Hash<'a> {
                 0,
             );
             if status != 0 {
-                bail!(ErrorKind::Win32(status));
+                return Err(PwrsError::Win32Error("BCryptFinishHash", status));
             }
             output.set_len(output_len);
             Ok(output)
@@ -443,25 +447,29 @@ impl<'a> Hash<'a> {
     }
 }
 
-pub fn hash_data(alg: HashAlg, data: &[u8]) -> Result<Vec<u8>> {
+pub fn hash_data(alg: HashAlg, data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     let hash = Hash::new(alg)?;
     hash.hash_data(&data)?;
     hash.finish_hash()
 }
 
-pub fn hash_sha1(data: &[u8]) -> Result<Vec<u8>> {
+pub fn hash_sha1(data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     hash_data(HashAlg::Sha1, &data)
 }
 
-pub fn hash_sha256(data: &[u8]) -> Result<Vec<u8>> {
+pub fn hash_sha256(data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     hash_data(HashAlg::Sha256, &data)
 }
 
-pub fn hmac_sha256(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn hmac_sha256(secret: &[u8], data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     hash_data(HashAlg::HmacSha256(&secret), &data)
 }
 
-pub fn hmac_sha256_with_label(secret: &[u8], label: &str, data: &[u8]) -> Result<Vec<u8>> {
+pub fn hmac_sha256_with_label(
+    secret: &[u8],
+    label: &str,
+    data: &[u8],
+) -> Result<Vec<u8>, PwrsError> {
     hmac_sha256(
         secret,
         &label

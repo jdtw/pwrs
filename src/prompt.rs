@@ -3,7 +3,7 @@ use win32::credui;
 pub use win32::credui::Credentials;
 
 pub trait Prompt {
-    fn prompt(&self) -> Result<Credentials>;
+    fn prompt(&self) -> Result<Credentials, PwrsError>;
 }
 
 pub struct StaticPrompt {
@@ -18,7 +18,7 @@ impl StaticPrompt {
 }
 
 impl Prompt for StaticPrompt {
-    fn prompt(&self) -> Result<Credentials> {
+    fn prompt(&self) -> Result<Credentials, PwrsError> {
         Ok(Credentials::new(
             self.username.clone(),
             self.password.clone(),
@@ -38,11 +38,9 @@ impl<'a> UIPrompt<'a> {
 }
 
 impl<'a> Prompt for UIPrompt<'a> {
-    fn prompt(&self) -> Result<Credentials> {
-        let auth_buffer = credui::prompt_for_windows_credentials(self.caption, self.message)
-            .chain_err(|| "Prompt for credentials failed")?;
-        let credentials = credui::unpack_authentication_buffer(auth_buffer)
-            .chain_err(|| "Unpack authentication buffer failed")?;
+    fn prompt(&self) -> Result<Credentials, PwrsError> {
+        let auth_buffer = credui::prompt_for_windows_credentials(self.caption, self.message)?;
+        let credentials = credui::unpack_authentication_buffer(auth_buffer)?;
         Ok(credentials)
     }
 }

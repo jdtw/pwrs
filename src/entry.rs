@@ -1,4 +1,4 @@
-use error::*;
+use error::{Error, PwrsError};
 use crypto::*;
 use authenticator::Authenticator;
 
@@ -11,7 +11,11 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn new(authenticator: &Authenticator, username: String, password: &str) -> Result<Entry> {
+    pub fn new(
+        authenticator: &Authenticator,
+        username: String,
+        password: &str,
+    ) -> Result<Entry, Error> {
         let ephemeral = EcdhKeyPair::new()?;
         let secret = ephemeral.agree_and_derive(authenticator.pk())?;
         let keys = DerivedKeys::new(&secret)?;
@@ -26,14 +30,14 @@ impl Entry {
         })
     }
 
-    pub fn decrypt_with(&self, authenticator: &Authenticator) -> Result<String> {
+    pub fn decrypt_with(&self, authenticator: &Authenticator) -> Result<String, Error> {
         let secret = authenticator.authenticator().authenticate(&self.pk)?;
         let keys = DerivedKeys::new(&secret)?;
         let mac = keys.mac(&self.username, &self.encrypted_password)?;
         if mac != self.mac {
-            bail!(ErrorKind::MacVerificationFailed);
+            bail!(PwrsError::MacVerificationFailed);
         }
-        keys.decrypt(&self.encrypted_password)
+        Ok(keys.decrypt(&self.encrypted_password)?)
     }
 
     pub fn username(&self) -> &str {

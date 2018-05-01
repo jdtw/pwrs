@@ -1,16 +1,13 @@
-error_chain!{
-    errors {
-        Win32(err: i32) {
-            description("Win32 error")
-            display("Win32 error: '{}'", err)
-        }
-        UserCancelled {
-            description("User cancelled")
-            display("User cancelled")
-        }
-        MacVerificationFailed {
-            description("MAC verification failed")
-            display("MAC verification failed")
-        }
-    }
+pub use failure::Error;
+
+#[derive(Debug, Fail)]
+pub enum PwrsError {
+    #[fail(display = "{} failed with error {}", _0, _1)]
+    Win32Error(&'static str, i32),
+    #[fail(display = "User canceled")]
+    UserCancelled,
+    #[fail(display = "MAC verification failed")]
+    MacVerificationFailed,
+    #[fail(display = "Buffer too small. Expected {}, got {}", _0, _1)]
+    BufferTooSmall(usize, usize),
 }

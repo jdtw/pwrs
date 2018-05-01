@@ -1,15 +1,15 @@
-use error;
 use crypto::*;
+use error::Error;
 
 pub trait Authenticate {
     // In: entry public key, Out: secret
-    fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret>;
+    fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error>;
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct KeyStorageProvider(Ksp, String);
 impl KeyStorageProvider {
-    pub fn new(ksp: Ksp, key_name: String) -> error::Result<Authenticator> {
+    pub fn new(ksp: Ksp, key_name: String) -> Result<Authenticator, Error> {
         let key = KspEcdhKeyPair::new(ksp, &key_name)?;
         Ok(Authenticator {
             pk: key.pk()?,
@@ -18,7 +18,7 @@ impl KeyStorageProvider {
     }
 }
 impl Authenticate for KeyStorageProvider {
-    fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
+    fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
         let key = KspEcdhKeyPair::open(self.0, &self.1)?;
         key.agree_and_derive(pk)
     }
@@ -61,7 +61,7 @@ pub mod test {
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     pub struct Test(PrivKey);
     impl Test {
-        pub fn new() -> error::Result<Authenticator> {
+        pub fn new() -> Result<Authenticator, Error> {
             let key = EcdhKeyPair::new()?;
             Ok(Authenticator {
                 pk: key.pk()?,
@@ -70,7 +70,7 @@ pub mod test {
         }
     }
     impl Authenticate for Test {
-        fn authenticate(&self, pk: &PubKey) -> error::Result<AgreedSecret> {
+        fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
             let sk = EcdhKeyPair::import(&self.0)?;
             sk.agree_and_derive(pk)
         }

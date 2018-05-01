@@ -38,24 +38,24 @@ impl ToString for Ksp {
     }
 }
 
-pub fn open_storage_provider(ksp: Ksp) -> Result<Handle<Object>> {
+pub fn open_storage_provider(ksp: Ksp) -> Result<Handle<Object>, PwrsError> {
     unsafe {
         let mut prov = Handle::new();
         let status =
             NCryptOpenStorageProvider(prov.put(), ksp.to_string().to_lpcwstr().as_ptr(), 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptOpenStorageProvider", status));
         }
         Ok(prov)
     }
 }
 
-pub fn open_key(prov: &Handle<Object>, key_name: &str) -> Result<Handle<Object>> {
+pub fn open_key(prov: &Handle<Object>, key_name: &str) -> Result<Handle<Object>, PwrsError> {
     unsafe {
         let mut key = Handle::new();
         let status = NCryptOpenKey(prov.get(), key.put(), key_name.to_lpcwstr().as_ptr(), 0, 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptOpenKey", status));
         }
         Ok(key)
     }
@@ -65,7 +65,7 @@ pub fn create_persisted_key(
     provider: &Handle<Object>,
     algo: Algorithm,
     key_name: Option<&str>,
-) -> Result<Handle<Object>> {
+) -> Result<Handle<Object>, PwrsError> {
     unsafe {
         let mut key = Handle::new();
         let name_bytes = key_name.map(|n| n.to_lpcwstr());
@@ -82,33 +82,37 @@ pub fn create_persisted_key(
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptCreatePersistedKey", status));
         }
         Ok(key)
     }
 }
 
-pub fn finalize_key(key: &Handle<Object>) -> Result<()> {
+pub fn finalize_key(key: &Handle<Object>) -> Result<(), PwrsError> {
     unsafe {
         let status = NCryptFinalizeKey(key.get(), 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptFinalizeKey", status));
         }
         Ok(())
     }
 }
 
-pub fn delete_key(mut key: Handle<Object>) -> Result<()> {
+pub fn delete_key(mut key: Handle<Object>) -> Result<(), PwrsError> {
     unsafe {
         let status = NCryptDeleteKey(key.release(), 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptDeleteKey", status));
         }
         Ok(())
     }
 }
 
-pub fn import_key(prov: &Handle<Object>, blob: Blob, bytes: &[u8]) -> Result<Handle<Object>> {
+pub fn import_key(
+    prov: &Handle<Object>,
+    blob: Blob,
+    bytes: &[u8],
+) -> Result<Handle<Object>, PwrsError> {
     unsafe {
         let mut key = Handle::new();
         let status = NCryptImportKey(
@@ -122,13 +126,13 @@ pub fn import_key(prov: &Handle<Object>, blob: Blob, bytes: &[u8]) -> Result<Han
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptImportKey", status));
         }
         Ok(key)
     }
 }
 
-pub fn export_key(key: &Handle<Object>, blob: Blob) -> Result<Vec<u8>> {
+pub fn export_key(key: &Handle<Object>, blob: Blob) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let blob_bytes = blob.to_string().to_lpcwstr();
         let mut byte_count: u32 = 0;
@@ -143,7 +147,7 @@ pub fn export_key(key: &Handle<Object>, blob: Blob) -> Result<Vec<u8>> {
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptExportKey", status));
         }
 
         let mut output = Vec::with_capacity(byte_count as usize);
@@ -158,7 +162,7 @@ pub fn export_key(key: &Handle<Object>, blob: Blob) -> Result<Vec<u8>> {
             0,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptExportKey", status));
         }
 
         output.set_len(byte_count as usize);
@@ -169,18 +173,18 @@ pub fn export_key(key: &Handle<Object>, blob: Blob) -> Result<Vec<u8>> {
 pub fn secret_agreement(
     priv_key: &Handle<Object>,
     pub_key: &Handle<Object>,
-) -> Result<Handle<Object>> {
+) -> Result<Handle<Object>, PwrsError> {
     unsafe {
         let mut secret = Handle::new();
         let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.put(), 0);
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptSecretAgreement", status));
         }
         Ok(secret)
     }
 }
 
-pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<Vec<u8>> {
+pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<Vec<u8>, PwrsError> {
     unsafe {
         let mut sha2 = BCRYPT_SHA256_ALGORITHM.to_lpcwstr();
         let mut label = label.to_lpcwstr();
@@ -214,7 +218,7 @@ pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<Vec<u8>> {
             KDF_USE_SECRET_AS_HMAC_KEY_FLAG,
         );
         if status != 0 {
-            bail!(ErrorKind::Win32(status));
+            return Err(PwrsError::Win32Error("NCryptDeriveKey", status));
         }
         output.set_len(byte_count as usize);
         Ok(output)

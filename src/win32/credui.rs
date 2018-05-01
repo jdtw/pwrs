@@ -42,7 +42,10 @@ impl AuthBuffer {
 }
 // TODO: impl Drop for AuthBuffer and secure zero it
 
-pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> Result<AuthBuffer> {
+pub fn prompt_for_windows_credentials(
+    caption: &str,
+    message: &str,
+) -> Result<AuthBuffer, PwrsError> {
     unsafe {
         let message = message.to_lpcwstr();
         let caption = caption.to_lpcwstr();
@@ -68,10 +71,13 @@ pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> Result<Au
             CREDUIWIN_GENERIC,
         );
         if error == ERROR_CANCELLED {
-            bail!(ErrorKind::UserCancelled);
+            return Err(PwrsError::UserCancelled);
         }
         if error != 0 {
-            bail!(ErrorKind::Win32(error as i32));
+            return Err(PwrsError::Win32Error(
+                "CredUIPromptForWindowsCredentialsW",
+                error as i32,
+            ));
         }
         let copy = AuthBuffer::new(auth_buffer, auth_buffer_byte_count as usize);
         // TODO: Secure zero!
@@ -80,7 +86,7 @@ pub fn prompt_for_windows_credentials(caption: &str, message: &str) -> Result<Au
     }
 }
 
-pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credentials> {
+pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credentials, PwrsError> {
     unsafe {
         let mut username_len = 0;
         let mut password_len = 0;
@@ -98,7 +104,10 @@ pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credential
         if success == 0 {
             let error = GetLastError();
             if error != ERROR_INSUFFICIENT_BUFFER {
-                bail!(ErrorKind::Win32(error as i32));
+                return Err(PwrsError::Win32Error(
+                    "CredUnPackAuthenticationBuffer",
+                    error as i32,
+                ));
             }
         }
         let mut username_buffer = Vec::with_capacity(username_len as usize);
@@ -115,7 +124,10 @@ pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credential
             &mut password_len,
         );
         if success == 0 {
-            bail!(ErrorKind::Win32(GetLastError() as i32));
+            return Err(PwrsError::Win32Error(
+                "CredUnPackAuthenticationBuffer",
+                GetLastError() as i32,
+            ));
         }
         // Strip off the null terminators before converting to rust strings.
         username_buffer.set_len(username_len as usize - 1);
@@ -149,7 +161,7 @@ mod tests {
     fn test_cancel_prompt() {
         let result = prompt_for_windows_credentials("test_cancel_prompt", "Cancel this prompt!");
         match result {
-            Err(Error(ErrorKind::UserCancelled, _)) => (),
+            Err(PwrsError::UserCancelled) => (),
             Err(e) => panic!("Unexpected error {}", e),
             _ => panic!("Cancel the prompt!"),
         }
