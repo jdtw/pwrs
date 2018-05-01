@@ -24,5 +24,5 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    unimplemented!()
+    Ok(())
 }

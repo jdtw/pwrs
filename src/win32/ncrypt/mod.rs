@@ -10,6 +10,9 @@ use win32::{CloseHandle, Handle, ToLpcwstr};
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 
+const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010006e;
+const NTE_EXISTS: u32 = 0x8009000f;
+
 pub struct Object;
 impl CloseHandle for Object {
     fn close(handle: &usize) {
@@ -81,6 +84,9 @@ pub fn create_persisted_key(
             0,
             0,
         );
+        if status == NTE_EXISTS as i32 {
+            return Err(PwrsError::KeyExists(String::from(key_name.unwrap_or(""))));
+        }
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptCreatePersistedKey", status));
         }
@@ -91,6 +97,9 @@ pub fn create_persisted_key(
 pub fn finalize_key(key: &Handle<Object>) -> Result<(), PwrsError> {
     unsafe {
         let status = NCryptFinalizeKey(key.get(), 0);
+        if status == SCARD_W_CANCELLED_BY_USER as i32 {
+            return Err(PwrsError::UserCancelled("NCryptFinalizeKey"));
+        }
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptFinalizeKey", status));
         }

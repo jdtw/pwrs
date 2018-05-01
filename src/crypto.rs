@@ -3,7 +3,7 @@ use win32::bcrypt;
 use win32::bcrypt::{Algorithm, Blob, SymAlg};
 use win32::ncrypt;
 pub use win32::ncrypt::Ksp;
-use error::Error;
+use error::*;
 
 // The ciphersuite we use is:
 // - ECDH on P256 curve

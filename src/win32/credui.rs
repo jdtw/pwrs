@@ -71,7 +71,9 @@ pub fn prompt_for_windows_credentials(
             CREDUIWIN_GENERIC,
         );
         if error == ERROR_CANCELLED {
-            return Err(PwrsError::UserCancelled);
+            return Err(PwrsError::UserCancelled(
+                "CredUIPromptForWindowsCredentialsW",
+            ));
         }
         if error != 0 {
             return Err(PwrsError::Win32Error(
@@ -161,7 +163,7 @@ mod tests {
     fn test_cancel_prompt() {
         let result = prompt_for_windows_credentials("test_cancel_prompt", "Cancel this prompt!");
         match result {
-            Err(PwrsError::UserCancelled) => (),
+            Err(PwrsError::UserCancelled(_)) => (),
             Err(e) => panic!("Unexpected error {}", e),
             _ => panic!("Cancel the prompt!"),
         }
