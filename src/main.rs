@@ -88,7 +88,23 @@ fn main() {
                         .requires("user"),
                 ),
         )
-        .subcommand(SubCommand::with_name("get").about("Retrieve an entry from the vault"))
+        .subcommand(
+            SubCommand::with_name("get")
+                .about("Retrieve an entry from the vault")
+                .arg(
+                    Arg::with_name("SITE")
+                        .help("Site for the password (e.g. example.com)")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::with_name("vault")
+                        .help("Vault input file")
+                        .takes_value(true)
+                        .short("v")
+                        .long("vault"),
+                ),
+        )
         .subcommand(SubCommand::with_name("ls").about("List the entries in the database"))
         .subcommand(SubCommand::with_name("del").about("Delete a vault"))
         .get_matches();
@@ -107,6 +123,13 @@ fn main() {
     }
 }
 
+fn vault_path_from_matches(matches: &ArgMatches) -> Result<String, Error> {
+    Ok(matches
+        .value_of("vault")
+        .map_or_else(|| std::env::var("VAULT_PATH"), |s| Ok(String::from(s)))
+        .context("Vault command line option or VAULT_PATH environment variable must be set.")?)
+}
+
 fn run(matches: ArgMatches) -> Result<(), Error> {
     match matches.subcommand() {
         ("new", Some(new_matches)) => println!(
@@ -118,12 +141,7 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
         ),
         ("add", Some(add_matches)) => {
             let site = add_matches.value_of("SITE").unwrap();
-            let vault_path = add_matches
-                .value_of("vault")
-                .map_or_else(|| std::env::var("VAULT_PATH"), |s| Ok(String::from(s)))
-                .context(
-                    "Vault command line option or VAULT_PATH environment variable must be set.",
-                )?;
+            let vault_path = vault_path_from_matches(&add_matches)?;
             let (username, password) = if add_matches.is_present("user") {
                 (
                     String::from(add_matches.value_of("user").unwrap()),
@@ -141,7 +159,11 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
                 vault_path, site, username, password
             )
         }
-        ("get", Some(_get_matches)) => unimplemented!(),
+        ("get", Some(get_matches)) => {
+            let site = get_matches.value_of("SITE").unwrap();
+            let vault_path = vault_path_from_matches(&get_matches)?;
+            println!("Get entry {} from vault {}", site, vault_path)
+        }
         ("ls", Some(_ls_matches)) => unimplemented!(),
         ("del", Some(_del_matches)) => unimplemented!(),
         _ => unreachable!(),
