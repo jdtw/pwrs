@@ -10,6 +10,7 @@ use pwrs::error::*;
 use pwrs::prompt::*;
 
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 fn main() {
     //    setup_panic!();
@@ -123,22 +124,27 @@ fn main() {
     }
 }
 
-fn vault_path_from_matches(matches: &ArgMatches) -> Result<String, Error> {
-    Ok(matches
+fn vault_path_from_matches(matches: &ArgMatches) -> Result<PathBuf, Error> {
+    Ok(PathBuf::from(matches
         .value_of("vault")
         .map_or_else(|| std::env::var("VAULT_PATH"), |s| Ok(String::from(s)))
-        .context("Vault command line option or VAULT_PATH environment variable must be set.")?)
+        .context(
+            "Vault command line option or VAULT_PATH environment variable must be set.",
+        )?))
 }
 
 fn run(matches: ArgMatches) -> Result<(), Error> {
     match matches.subcommand() {
-        ("new", Some(new_matches)) => println!(
-            "Create a new vault at {} with a sc:{}, sw:{} authenticator and a {} key name",
-            new_matches.value_of("VAULT").unwrap(),
-            new_matches.is_present("smartcard"),
-            new_matches.is_present("software"),
-            new_matches.value_of("key").unwrap()
-        ),
+        ("new", Some(new_matches)) => {
+            let vault_path = Path::new(new_matches.value_of("VAULT").unwrap());
+            println!(
+                "Create a new vault at {} with a sc:{}, sw:{} authenticator and a {} key name",
+                vault_path.display(),
+                new_matches.is_present("smartcard"),
+                new_matches.is_present("software"),
+                new_matches.value_of("key").unwrap()
+            )
+        }
         ("add", Some(add_matches)) => {
             let site = add_matches.value_of("SITE").unwrap();
             let vault_path = vault_path_from_matches(&add_matches)?;
@@ -156,13 +162,16 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
             };
             println!(
                 "Add new entry to vault {} for {} with user: {}, pass: {}",
-                vault_path, site, username, password
+                vault_path.display(),
+                site,
+                username,
+                password
             )
         }
         ("get", Some(get_matches)) => {
             let site = get_matches.value_of("SITE").unwrap();
             let vault_path = vault_path_from_matches(&get_matches)?;
-            println!("Get entry {} from vault {}", site, vault_path)
+            println!("Get entry {} from vault {}", site, vault_path.display())
         }
         ("ls", Some(_ls_matches)) => unimplemented!(),
         ("del", Some(_del_matches)) => unimplemented!(),
