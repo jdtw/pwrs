@@ -1,4 +1,4 @@
-#[macro_use]
+//#[macro_use]
 extern crate human_panic;
 
 #[macro_use]
@@ -10,7 +10,7 @@ use pwrs::error::*;
 use pwrs::prompt::*;
 
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() {
     //    setup_panic!();
@@ -28,16 +28,17 @@ fn main() {
         .version(crate_version!())
         .author(crate_authors!())
         .about("Command line password manager")
+        .arg(
+            Arg::with_name("vault")
+                .help("Vault input file")
+                .takes_value(true)
+                .short("v")
+                .long("vault"),
+        )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(
             SubCommand::with_name("new")
                 .about("Create a new vault")
-                .arg(
-                    Arg::with_name("VAULT")
-                        .help("Path to the vault file")
-                        .required(true)
-                        .index(1),
-                )
                 .args_from_usage(
                     "-c, --smartcard 'smart card KSP'
                      -w, --software  'software KSP'",
@@ -66,13 +67,6 @@ fn main() {
                         .index(1),
                 )
                 .arg(
-                    Arg::with_name("vault")
-                        .help("Vault input file")
-                        .takes_value(true)
-                        .short("v")
-                        .long("vault"),
-                )
-                .arg(
                     Arg::with_name("user")
                         .help("Username")
                         .takes_value(true)
@@ -97,13 +91,6 @@ fn main() {
                         .help("Site for the password (e.g. example.com)")
                         .required(true)
                         .index(1),
-                )
-                .arg(
-                    Arg::with_name("vault")
-                        .help("Vault input file")
-                        .takes_value(true)
-                        .short("v")
-                        .long("vault"),
                 ),
         )
         .subcommand(SubCommand::with_name("ls").about("List the entries in the database"))
@@ -134,20 +121,17 @@ fn vault_path_from_matches(matches: &ArgMatches) -> Result<PathBuf, Error> {
 }
 
 fn run(matches: ArgMatches) -> Result<(), Error> {
+    let vault_path = vault_path_from_matches(&matches)?;
     match matches.subcommand() {
-        ("new", Some(new_matches)) => {
-            let vault_path = Path::new(new_matches.value_of("VAULT").unwrap());
-            println!(
-                "Create a new vault at {} with a sc:{}, sw:{} authenticator and a {} key name",
-                vault_path.display(),
-                new_matches.is_present("smartcard"),
-                new_matches.is_present("software"),
-                new_matches.value_of("key").unwrap()
-            )
-        }
+        ("new", Some(new_matches)) => println!(
+            "Create a new vault at {} with a sc:{}, sw:{} authenticator and a {} key name",
+            vault_path.display(),
+            new_matches.is_present("smartcard"),
+            new_matches.is_present("software"),
+            new_matches.value_of("key").unwrap()
+        ),
         ("add", Some(add_matches)) => {
             let site = add_matches.value_of("SITE").unwrap();
-            let vault_path = vault_path_from_matches(&add_matches)?;
             let (username, password) = if add_matches.is_present("user") {
                 (
                     String::from(add_matches.value_of("user").unwrap()),
@@ -170,7 +154,6 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
         }
         ("get", Some(get_matches)) => {
             let site = get_matches.value_of("SITE").unwrap();
-            let vault_path = vault_path_from_matches(&get_matches)?;
             println!("Get entry {} from vault {}", site, vault_path.display())
         }
         ("ls", Some(_ls_matches)) => unimplemented!(),
