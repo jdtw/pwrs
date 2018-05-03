@@ -7,11 +7,11 @@ extern crate serde_derive;
 #[macro_use]
 extern crate failure;
 
-pub mod win32;
-pub mod utils;
-pub mod error;
 pub mod authenticator;
-pub mod entry;
 pub mod crypto;
-pub mod vault;
+pub mod entry;
+pub mod error;
 pub mod prompt;
+pub mod utils;
+pub mod vault;
+pub mod win32;

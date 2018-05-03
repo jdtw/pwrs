@@ -1,9 +1,9 @@
+use error::*;
 use win32;
 use win32::bcrypt;
 use win32::bcrypt::{Algorithm, Blob, SymAlg};
 use win32::ncrypt;
 pub use win32::ncrypt::Ksp;
-use error::*;
 
 // The ciphersuite we use is:
 // - ECDH on P256 curve
@@ -111,9 +111,7 @@ impl DerivedKeys {
 
     pub fn mac(&self, label: &str, data: &EncryptedBytes) -> Result<Mac, Error> {
         Ok(Mac(bcrypt::hmac_sha256_with_label(
-            &self.s.0,
-            &label,
-            &data.0,
+            &self.s.0, &label, &data.0,
         )?))
     }
 }

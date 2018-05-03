@@ -1,7 +1,7 @@
-use serde_json;
-use entry::Entry;
 use authenticator::Authenticator;
+use entry::Entry;
 use error::Error;
+use serde_json;
 
 use std::collections::HashMap;
 use std::io::prelude::*;

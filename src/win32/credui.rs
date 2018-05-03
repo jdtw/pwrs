@@ -1,15 +1,15 @@
 use error::*;
-use win32::ToLpcwstr;
-use win32::winapi::um::wincred::*;
-use win32::winapi::um::combaseapi::CoTaskMemFree;
-use win32::winapi::um::errhandlingapi::GetLastError;
-use win32::winapi::shared::winerror::{ERROR_CANCELLED, ERROR_INSUFFICIENT_BUFFER};
-use win32::winapi::ctypes::c_void;
+use std::ffi::OsString;
 use std::mem;
+use std::os::windows::ffi::OsStringExt;
 use std::ptr;
 use std::ptr::null_mut;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
+use win32::winapi::ctypes::c_void;
+use win32::winapi::shared::winerror::{ERROR_CANCELLED, ERROR_INSUFFICIENT_BUFFER};
+use win32::winapi::um::combaseapi::CoTaskMemFree;
+use win32::winapi::um::errhandlingapi::GetLastError;
+use win32::winapi::um::wincred::*;
+use win32::ToLpcwstr;
 
 #[derive(Debug, PartialEq)]
 pub struct Credentials {

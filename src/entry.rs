@@ -1,6 +1,6 @@
-use error::{Error, PwrsError};
-use crypto::*;
 use authenticator::Authenticator;
+use crypto::*;
+use error::{Error, PwrsError};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
