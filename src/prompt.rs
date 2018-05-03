@@ -6,26 +6,6 @@ pub trait Prompt {
     fn prompt(&self) -> Result<Credentials, PwrsError>;
 }
 
-pub struct StaticPrompt {
-    username: String,
-    password: String,
-}
-
-impl StaticPrompt {
-    pub fn new(username: String, password: String) -> StaticPrompt {
-        StaticPrompt { username, password }
-    }
-}
-
-impl Prompt for StaticPrompt {
-    fn prompt(&self) -> Result<Credentials, PwrsError> {
-        Ok(Credentials::new(
-            self.username.clone(),
-            self.password.clone(),
-        ))
-    }
-}
-
 pub struct UIPrompt<'a> {
     caption: &'a str,
     message: &'a str,

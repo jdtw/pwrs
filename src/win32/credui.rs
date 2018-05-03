@@ -27,6 +27,9 @@ impl Credentials {
     pub fn password(&self) -> &str {
         &self.password
     }
+    pub fn to_tuple(self) -> (String, String) {
+        (self.username, self.password)
+    }
 }
 
 pub struct AuthBuffer(Vec<u8>);

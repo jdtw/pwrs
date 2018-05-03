@@ -7,6 +7,7 @@ use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
 
 extern crate pwrs;
 use pwrs::error::*;
+use pwrs::prompt::*;
 
 use std::io::Write;
 
@@ -54,7 +55,39 @@ fn main() {
                         .long("key-name"),
                 ),
         )
-        .subcommand(SubCommand::with_name("add").about("Add a new entry to the vault"))
+        .subcommand(
+            SubCommand::with_name("add")
+                .about("Add a new entry to the vault")
+                .arg(
+                    Arg::with_name("SITE")
+                        .help("Site for the password (e.g. example.com)")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::with_name("vault")
+                        .help("Vault input file")
+                        .takes_value(true)
+                        .short("v")
+                        .long("vault"),
+                )
+                .arg(
+                    Arg::with_name("user")
+                        .help("Username")
+                        .takes_value(true)
+                        .short("u")
+                        .long("user")
+                        .requires("password"),
+                )
+                .arg(
+                    Arg::with_name("password")
+                        .help("Password")
+                        .takes_value(true)
+                        .short("p")
+                        .long("pass")
+                        .requires("user"),
+                ),
+        )
         .subcommand(SubCommand::with_name("get").about("Retrieve an entry from the vault"))
         .subcommand(SubCommand::with_name("ls").about("List the entries in the database"))
         .subcommand(SubCommand::with_name("del").about("Delete a vault"))
@@ -66,7 +99,7 @@ fn main() {
 
         writeln!(stderr, "error: {}", e).expect(errmsg);
 
-        for cause in e.causes() {
+        for cause in e.causes().skip(1) {
             writeln!(stderr, "caused by: {}", cause).expect(errmsg);
         }
 
@@ -83,10 +116,34 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
             new_matches.is_present("software"),
             new_matches.value_of("key").unwrap()
         ),
-        ("add", Some(_add_matches)) => (),
-        ("get", Some(_get_matches)) => (),
-        ("ls", Some(_ls_matches)) => (),
-        ("del", Some(_del_matches)) => (),
+        ("add", Some(add_matches)) => {
+            let site = add_matches.value_of("SITE").unwrap();
+            let vault_path = add_matches
+                .value_of("vault")
+                .map_or_else(|| std::env::var("VAULT_PATH"), |s| Ok(String::from(s)))
+                .context(
+                    "Vault command line option or VAULT_PATH environment variable must be set.",
+                )?;
+            let (username, password) = if add_matches.is_present("user") {
+                (
+                    String::from(add_matches.value_of("user").unwrap()),
+                    String::from(add_matches.value_of("password").unwrap()),
+                )
+            } else {
+                let message = format!("Enter credentials for {}", site);
+                UIPrompt::new("PWRS", &message)
+                    .prompt()
+                    .with_context(move |_| format!("Prompt '{}' cancelled", message))?
+                    .to_tuple()
+            };
+            println!(
+                "Add new entry to vault {} for {} with user: {}, pass: {}",
+                vault_path, site, username, password
+            )
+        }
+        ("get", Some(_get_matches)) => unimplemented!(),
+        ("ls", Some(_ls_matches)) => unimplemented!(),
+        ("del", Some(_del_matches)) => unimplemented!(),
         _ => unreachable!(),
     }
 
