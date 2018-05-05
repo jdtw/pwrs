@@ -12,4 +12,6 @@ pub enum PwrsError {
     BufferTooSmall(usize, usize),
     #[fail(display = "Key \"{}\" exists", _0)]
     KeyExists(String),
+    #[fail(display = "Key \"{}\" not found", _0)]
+    KeyNotFound(String),
 }

@@ -12,6 +12,7 @@ use std::string::ToString;
 
 const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010006e;
 const NTE_EXISTS: u32 = 0x8009000f;
+const NTE_BAD_KEYSET: u32 = 0x80090016;
 
 pub struct Object;
 impl CloseHandle for Object {
@@ -57,6 +58,9 @@ pub fn open_key(prov: &Handle<Object>, key_name: &str) -> Result<Handle<Object>,
     unsafe {
         let mut key = Handle::new();
         let status = NCryptOpenKey(prov.get(), key.put(), key_name.to_lpcwstr().as_ptr(), 0, 0);
+        if status == NTE_BAD_KEYSET as i32 {
+            return Err(PwrsError::KeyNotFound(String::from(key_name)));
+        }
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptOpenKey", status));
         }
