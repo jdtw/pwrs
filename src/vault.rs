@@ -35,6 +35,10 @@ impl Vault {
         }
     }
 
+    pub fn delete(self) -> Result<(), Error> {
+        self.authenticator.delete()
+    }
+
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
         Ok(serde_json::to_writer_pretty(writer, &self)?)
     }

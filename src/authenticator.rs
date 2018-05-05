@@ -7,20 +7,28 @@ pub trait Authenticate {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct KeyStorageProvider(Ksp, String);
+pub struct KeyStorageProvider {
+    ksp: Ksp,
+    key_name: String,
+}
+
 impl KeyStorageProvider {
     pub fn new(ksp: Ksp, key_name: String) -> Result<Authenticator, Error> {
         let key = KspEcdhKeyPair::new(ksp, &key_name)?;
         Ok(Authenticator {
             pk: key.pk()?,
-            authenticator: AuthenticatorType::Ksp(KeyStorageProvider(ksp, key_name)),
+            authenticator: AuthenticatorType::Ksp(KeyStorageProvider { ksp, key_name }),
         })
     }
+
+    fn delete(self) -> Result<(), Error> {
+        KspEcdhKeyPair::open(self.ksp, &self.key_name)?.delete()
+    }
 }
+
 impl Authenticate for KeyStorageProvider {
     fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
-        let key = KspEcdhKeyPair::open(self.0, &self.1)?;
-        key.agree_and_derive(pk)
+        KspEcdhKeyPair::open(self.ksp, &self.key_name)?.agree_and_derive(pk)
     }
 }
 
@@ -49,6 +57,14 @@ impl Authenticator {
             #[cfg(test)]
             &AuthenticatorType::Test(ref test) => test,
             &AuthenticatorType::Ksp(ref ksp) => ksp,
+        }
+    }
+
+    pub fn delete(self) -> Result<(), Error> {
+        match self.authenticator {
+            #[cfg(test)]
+            AuthenticatorType::Test(_) => Ok(()),
+            AuthenticatorType::Ksp(ksp) => ksp.delete(),
         }
     }
 }
@@ -96,8 +112,7 @@ mod tests {
             KeyStorageProvider::new(Ksp::Software, String::from("testkey1")).unwrap();
         let entry = Entry::new(&authenticator, String::from("john"), "password").unwrap();
         let decrypted = entry.decrypt_with(&authenticator).unwrap();
-        let key = KspEcdhKeyPair::open(Ksp::Software, "testkey1").unwrap();
-        key.delete().unwrap();
+        authenticator.delete().unwrap();
         assert_eq!("password", decrypted);
     }
 }
