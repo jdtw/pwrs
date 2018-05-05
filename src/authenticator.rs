@@ -1,5 +1,6 @@
 use crypto::*;
 use error::Error;
+pub use win32::ncrypt::Ksp;
 
 pub trait Authenticate {
     // In: entry public key, Out: secret

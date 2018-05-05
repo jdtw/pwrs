@@ -22,7 +22,7 @@ impl<'a> EntryRef<'a> {
         self.entry.username()
     }
 
-    pub fn password(&self) -> Result<String, Error> {
+    pub fn decrypt_password(&self) -> Result<String, Error> {
         Ok(self.entry.decrypt_with(self.authenticator)?)
     }
 }
@@ -90,7 +90,7 @@ mod tests {
             let entry = vault.get("key").unwrap();
             let username = entry.username();
             assert_eq!(username, "username");
-            let password = entry.password().unwrap();
+            let password = entry.decrypt_password().unwrap();
             assert_eq!(password, "password");
         }
         // And make sure the entry didn't go anywhere
@@ -98,7 +98,7 @@ mod tests {
             let entry = vault.get("key").unwrap();
             let username = entry.username();
             assert_eq!(username, "username");
-            let password = entry.password().unwrap();
+            let password = entry.decrypt_password().unwrap();
             assert_eq!(password, "password");
         }
         // Replace the entry
@@ -109,7 +109,7 @@ mod tests {
             let entry = vault.get("key").unwrap();
             let username = entry.username();
             assert_eq!(username, "username2");
-            let password = entry.password().unwrap();
+            let password = entry.decrypt_password().unwrap();
             assert_eq!(password, "password2");
         }
         // Now remove it
@@ -137,7 +137,7 @@ mod tests {
         let entry = vault.get("foo.com").unwrap();
         let username = entry.username();
         assert_eq!(username, "foo");
-        let password = entry.password().unwrap();
+        let password = entry.decrypt_password().unwrap();
         assert_eq!(password, "bar");
     }
 }

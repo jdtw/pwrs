@@ -6,9 +6,12 @@ extern crate clap;
 use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
 
 extern crate pwrs;
+use pwrs::authenticator::{KeyStorageProvider, Ksp};
 use pwrs::error::*;
 use pwrs::prompt::*;
+use pwrs::vault::Vault;
 
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -123,15 +126,31 @@ fn vault_path_from_matches(matches: &ArgMatches) -> Result<PathBuf, Error> {
 fn run(matches: ArgMatches) -> Result<(), Error> {
     let vault_path = vault_path_from_matches(&matches)?;
     match matches.subcommand() {
-        ("new", Some(new_matches)) => println!(
-            "Create a new vault at {} with a sc:{}, sw:{} authenticator and a {} key name",
-            vault_path.display(),
-            new_matches.is_present("smartcard"),
-            new_matches.is_present("software"),
-            new_matches.value_of("key").unwrap()
-        ),
+        ("new", Some(new_matches)) => {
+            let ksp = if new_matches.is_present("software") {
+                Ksp::Software
+            } else if new_matches.is_present("smartcard") {
+                Ksp::SmartCard
+            } else {
+                unreachable!()
+            };
+            let authenticator =
+                KeyStorageProvider::new(ksp, String::from(new_matches.value_of("key").unwrap()))?;
+            let vault = Vault::new(authenticator);
+            let vault_file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(vault_path.as_path())
+                .context(format!(
+                    "Create new vault file failed: {}",
+                    vault_path.display()
+                ))?;
+            vault
+                .to_writer(vault_file)
+                .context("Serialize vault failed")?;
+        }
         ("add", Some(add_matches)) => {
-            let site = add_matches.value_of("SITE").unwrap();
+            let site = String::from(add_matches.value_of("SITE").unwrap());
             let (username, password) = if add_matches.is_present("user") {
                 (
                     String::from(add_matches.value_of("user").unwrap()),
@@ -141,20 +160,39 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
                 let message = format!("Enter credentials for {}", site);
                 UIPrompt::new("PWRS", &message)
                     .prompt()
-                    .with_context(move |_| format!("Prompt '{}' cancelled", message))?
+                    .context(format!("Prompt '{}' cancelled", message))?
                     .to_tuple()
             };
-            println!(
-                "Add new entry to vault {} for {} with user: {}, pass: {}",
-                vault_path.display(),
-                site,
-                username,
-                password
-            )
+
+            let vault_file = File::open(vault_path.as_path())
+                .context(format!("Open vault file failed: {}", vault_path.display()))?;
+            let mut vault = Vault::from_reader(vault_file)?;
+            vault
+                .insert(site, username, &password)
+                .context("Insert vault entry failed")?;
+            let vault_file = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(vault_path.as_path())
+                .context(format!(
+                    "Open vault file for write failed: {}",
+                    vault_path.display()
+                ))?;
+            vault.to_writer(vault_file)?;
         }
         ("get", Some(get_matches)) => {
             let site = get_matches.value_of("SITE").unwrap();
-            println!("Get entry {} from vault {}", site, vault_path.display())
+            let vault_file = File::open(vault_path.as_path())
+                .context(format!("Open vault file failed: {}", vault_path.display()))?;
+            let vault = Vault::from_reader(vault_file)?;
+            if let Some(entry) = vault.get(site) {
+                let password = entry
+                    .decrypt_password()
+                    .context("Password decryption failed")?;
+                println!("Username: {}", entry.username());
+                // TODO: Copy to clipboard
+                println!("Password: {}", password);
+            }
         }
         ("ls", Some(_ls_matches)) => unimplemented!(),
         ("del", Some(_del_matches)) => unimplemented!(),
