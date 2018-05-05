@@ -3,8 +3,10 @@ use entry::Entry;
 use error::Error;
 use serde_json;
 
+use std::collections::hash_map;
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::iter::Iterator;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
@@ -27,11 +29,38 @@ impl<'a> EntryRef<'a> {
     }
 }
 
+pub struct VaultIter<'a> {
+    authenticator: &'a Authenticator,
+    entries: hash_map::Iter<'a, String, Entry>,
+}
+
+impl<'a> Iterator for VaultIter<'a> {
+    type Item = (&'a String, EntryRef<'a>);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entries.next().map(|(site, entry)| {
+            (
+                site,
+                EntryRef {
+                    authenticator: self.authenticator,
+                    entry,
+                },
+            )
+        })
+    }
+}
+
 impl Vault {
     pub fn new(authenticator: Authenticator) -> Vault {
         Vault {
             authenticator,
             entries: HashMap::new(),
+        }
+    }
+
+    pub fn iter<'a>(&'a self) -> VaultIter<'a> {
+        VaultIter {
+            authenticator: &self.authenticator,
+            entries: self.entries.iter(),
         }
     }
 
@@ -57,8 +86,8 @@ impl Vault {
         Ok(self.entries.insert(key, entry))
     }
 
-    pub fn get(&self, key: &str) -> Option<EntryRef> {
-        self.entries.get(key).map(|entry| EntryRef {
+    pub fn get(&self, site: &str) -> Option<EntryRef> {
+        self.entries.get(site).map(|entry| EntryRef {
             authenticator: &self.authenticator,
             entry,
         })

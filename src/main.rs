@@ -207,7 +207,15 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
                 }
             }
         }
-        ("ls", Some(_ls_matches)) => unimplemented!(),
+        ("ls", Some(_ls_matches)) => {
+            let vault_file = File::open(vault_path.as_path())
+                .context(format!("Open vault file failed: {}", vault_path.display()))?;
+            let vault = Vault::from_reader(vault_file)?;
+            // TODO: Sort these by site
+            for (site, entry) in vault.iter() {
+                println!("{}, {}", site, entry.username());
+            }
+        }
         ("del", Some(_del_matches)) => {
             let vault_file = File::open(vault_path.as_path())
                 .context(format!("Open vault file failed: {}", vault_path.display()))?;
