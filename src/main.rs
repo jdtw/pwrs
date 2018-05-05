@@ -11,6 +11,7 @@ use pwrs::error::*;
 use pwrs::prompt::*;
 use pwrs::vault::Vault;
 
+use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -195,7 +196,16 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
             }
         }
         ("ls", Some(_ls_matches)) => unimplemented!(),
-        ("del", Some(_del_matches)) => unimplemented!(),
+        ("del", Some(_del_matches)) => {
+            let vault_file = File::open(vault_path.as_path())
+                .context(format!("Open vault file failed: {}", vault_path.display()))?;
+            let vault = Vault::from_reader(vault_file)?;
+            vault.delete().context("Failed to remove the vault key")?;
+            fs::remove_file(vault_path.as_path()).context(format!(
+                "Remove vault file failed: {}",
+                vault_path.display()
+            ))?;
+        }
         _ => unreachable!(),
     }
 
