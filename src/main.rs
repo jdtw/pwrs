@@ -19,15 +19,6 @@ use std::path::PathBuf;
 fn main() {
     //    setup_panic!();
 
-    // Here's how I want to use this tool:
-    // > pwrs new /path/to/vault.json --smartcard --key-name pwrskeyname
-    // > pwrs new /path/to/vault.json --software --key-name pwrskeyname
-    // > pwrs add firsttechfed # will prompt for username/password, and use the vault from PWRS_VAULT
-    // > pwrs add google -u me@gmail.com -p password
-    // > pwrs get google # will copy to clipboard and use vault from PWRS_VAULT
-    // > pwrs get google --show
-    // > pwrs del /path/to/vault.json # path should be required here, because we want this to be explicit
-    // > pwrs ls
     let matches = App::new("PWRS")
         .version(crate_version!())
         .author(crate_authors!())
@@ -120,7 +111,7 @@ fn vault_path_from_matches(matches: &ArgMatches) -> Result<PathBuf, Error> {
         .value_of("vault")
         .map_or_else(|| std::env::var("VAULT_PATH"), |s| Ok(String::from(s)))
         .context(
-            "Vault command line option or VAULT_PATH environment variable must be set.",
+            "Vault command line option or VAULT_PATH environment variable must be set",
         )?))
 }
 
@@ -135,8 +126,8 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
             } else {
                 unreachable!()
             };
-            let authenticator =
-                KeyStorageProvider::new(ksp, String::from(new_matches.value_of("key").unwrap()))?;
+            let key_name = String::from(new_matches.value_of("key").unwrap());
+            let authenticator = KeyStorageProvider::new(ksp, key_name)?;
             let vault = Vault::new(authenticator);
             let vault_file = OpenOptions::new()
                 .write(true)
