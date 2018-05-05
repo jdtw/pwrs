@@ -1,6 +1,9 @@
 //#[macro_use]
 extern crate human_panic;
 
+extern crate clipboard_win;
+use clipboard_win::Clipboard;
+
 #[macro_use]
 extern crate clap;
 use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
@@ -86,6 +89,18 @@ fn main() {
                         .help("Site for the password (e.g. example.com)")
                         .required(true)
                         .index(1),
+                )
+                .arg(
+                    Arg::with_name("dump")
+                        .help("Dump the password to STDOUT")
+                        .short("d")
+                        .long("dump"),
+                )
+                .arg(
+                    Arg::with_name("user")
+                        .help("Only retrieve the username")
+                        .short("u")
+                        .long("user"),
                 ),
         )
         .subcommand(SubCommand::with_name("ls").about("List the entries in the database"))
@@ -178,12 +193,18 @@ fn run(matches: ArgMatches) -> Result<(), Error> {
                 .context(format!("Open vault file failed: {}", vault_path.display()))?;
             let vault = Vault::from_reader(vault_file)?;
             if let Some(entry) = vault.get(site) {
-                let password = entry
-                    .decrypt_password()
-                    .context("Password decryption failed")?;
                 println!("Username: {}", entry.username());
-                // TODO: Copy to clipboard
-                println!("Password: {}", password);
+                if !get_matches.is_present("user") {
+                    let password = entry
+                        .decrypt_password()
+                        .context("Password decryption failed")?;
+                    if get_matches.is_present("dump") {
+                        println!("Password: {}", password);
+                    } else {
+                        Clipboard::new()?.set_string(&password)?;
+                        println!("Password copied to clipboard");
+                    }
+                }
             }
         }
         ("ls", Some(_ls_matches)) => unimplemented!(),

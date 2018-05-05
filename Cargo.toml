@@ -11,3 +11,4 @@ winapi = { version = "0.3", features = ["bcrypt", "wincred", "combaseapi", "errh
 human-panic = "0.4"
 failure = "0.1"
 clap = "2.31"
+clipboard-win = "2.1"
