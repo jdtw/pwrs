@@ -5,6 +5,7 @@ use error::{Error, PwrsError};
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
     pk: PubKey, // ECDH P256
+    // TODO: Site needs to be part of the entry, and must be included in the MAC
     username: String,
     encrypted_password: EncryptedBytes, // AES-256 CBC
     mac: Mac,                           // HMAC_SHA256(username||encrypted_password)
