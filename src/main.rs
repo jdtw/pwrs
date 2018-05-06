@@ -1,6 +1,3 @@
-//#[macro_use]
-extern crate human_panic;
-
 extern crate clipboard_win;
 use clipboard_win::Clipboard;
 
@@ -15,13 +12,10 @@ use pwrs::prompt::*;
 use pwrs::vault::Vault;
 
 use std::fs;
-use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-    //    setup_panic!();
-
     let matches = App::new("PWRS")
         .version(crate_version!())
         .author(crate_authors!())
@@ -141,17 +135,7 @@ fn new(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let key_name = String::from(matches.value_of("key").unwrap());
     let authenticator = KeyStorageProvider::new(ksp, key_name)?;
     let vault = Vault::new(authenticator);
-    let vault_file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(vault_path.as_path())
-        .context(format!(
-            "Create new vault file failed: {}",
-            vault_path.display()
-        ))?;
-    vault
-        .to_writer(vault_file)
-        .context("Serialize vault failed")?;
+    vault.write_new(vault_path)?;
     Ok(())
 }
 
@@ -166,46 +150,34 @@ fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
         let message = format!("Enter credentials for {}", site);
         UIPrompt::new("PWRS", &message)
             .prompt()
-            .context(format!("Prompt '{}' cancelled", message))?
+            .context(format!("Prompt '{}' failed", message))?
             .to_tuple()
     };
 
-    let vault_file = File::open(vault_path.as_path())
-        .context(format!("Open vault file failed: {}", vault_path.display()))?;
-    let mut vault = Vault::from_reader(vault_file)?;
+    let mut vault = Vault::from_path(vault_path.as_path())?;
     vault
         .insert(site, username, &password)
         .context("Insert vault entry failed")?;
-    let vault_file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(vault_path.as_path())
-        .context(format!(
-            "Open vault file for write failed: {}",
-            vault_path.display()
-        ))?;
-    vault.to_writer(vault_file)?;
-
+    vault.write_update(vault_path)?;
     Ok(())
 }
 
 fn get(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let site = matches.value_of("SITE").unwrap();
-    let vault_file = File::open(vault_path.as_path())
-        .context(format!("Open vault file failed: {}", vault_path.display()))?;
-    let vault = Vault::from_reader(vault_file)?;
-    if let Some(entry) = vault.get(site) {
-        println!("Username: {}", entry.username());
-        if !matches.is_present("user") {
-            let password = entry
-                .decrypt_password()
-                .context("Password decryption failed")?;
-            if matches.is_present("dump") {
-                println!("Password: {}", password);
-            } else {
-                Clipboard::new()?.set_string(&password)?;
-                println!("Password copied to clipboard");
-            }
+    let vault = Vault::from_path(vault_path)?;
+    let entry = vault
+        .get(site)
+        .ok_or(PwrsError::EntryNotFound(String::from(site)))?;
+    println!("Username: {}", entry.username());
+    if !matches.is_present("user") {
+        let password = entry
+            .decrypt_password()
+            .context("Password decryption failed")?;
+        if matches.is_present("dump") {
+            println!("Password: {}", password);
+        } else {
+            Clipboard::new()?.set_string(&password)?;
+            println!("Password copied to clipboard");
         }
     }
 
@@ -213,11 +185,10 @@ fn get(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
 }
 
 fn ls(vault_path: PathBuf) -> Result<(), Error> {
-    let vault_file = File::open(vault_path.as_path())
-        .context(format!("Open vault file failed: {}", vault_path.display()))?;
-    let vault = Vault::from_reader(vault_file)?;
-    // TODO: Sort these by site
-    for (site, entry) in vault.iter() {
+    let vault = Vault::from_path(vault_path)?;
+    let mut entries = vault.iter().collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    for (site, entry) in entries {
         println!("{}, {}", site, entry.username());
     }
 
@@ -225,9 +196,7 @@ fn ls(vault_path: PathBuf) -> Result<(), Error> {
 }
 
 fn del(vault_path: PathBuf) -> Result<(), Error> {
-    let vault_file = File::open(vault_path.as_path())
-        .context(format!("Open vault file failed: {}", vault_path.display()))?;
-    let vault = Vault::from_reader(vault_file)?;
+    let vault = Vault::from_path(vault_path.as_path())?;
     vault.delete().context("Failed to remove the vault key")?;
     fs::remove_file(vault_path.as_path()).context(format!(
         "Remove vault file failed: {}",

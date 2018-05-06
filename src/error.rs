@@ -14,4 +14,6 @@ pub enum PwrsError {
     KeyExists(String),
     #[fail(display = "Key \"{}\" not found", _0)]
     KeyNotFound(String),
+    #[fail(display = "Entry \"{}\" not found", _0)]
+    EntryNotFound(String),
 }

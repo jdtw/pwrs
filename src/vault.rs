@@ -1,12 +1,14 @@
 use authenticator::Authenticator;
 use entry::Entry;
-use error::Error;
+use error::*;
 use serde_json;
 
 use std::collections::hash_map;
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::iter::Iterator;
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
@@ -74,6 +76,38 @@ impl Vault {
 
     pub fn from_reader<R: Read>(reader: R) -> Result<Vault, Error> {
         Ok(serde_json::from_reader(reader)?)
+    }
+
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Vault, Error> {
+        let file = File::open(path.as_ref()).context(format!(
+            "Open vault file '{}' failed",
+            path.as_ref().display()
+        ))?;
+        Vault::from_reader(file)
+    }
+
+    pub fn write_new<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        let vault_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path.as_ref())
+            .context(format!(
+                "Create new vault file failed: {}",
+                path.as_ref().display()
+            ))?;
+        self.to_writer(vault_file)
+    }
+
+    pub fn write_update<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        let vault_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(path.as_ref())
+            .context(format!(
+                "Open vault file for write failed: {}",
+                path.as_ref().display()
+            ))?;
+        self.to_writer(vault_file)
     }
 
     pub fn insert(
