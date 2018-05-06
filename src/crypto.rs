@@ -1,4 +1,5 @@
 use error::*;
+use utils::ToHex;
 use win32;
 use win32::bcrypt;
 use win32::bcrypt::{Algorithm, Blob, SymAlg};
@@ -26,6 +27,13 @@ pub struct PubKey(Vec<u8>);
 pub struct PrivKey(Vec<u8>);
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct AgreedSecret(Vec<u8>);
+
+impl PubKey {
+    pub fn thumbprint(&self) -> Result<String, Error> {
+        let hash = bcrypt::hash_sha1(&self.0)?;
+        Ok(hash.to_hex())
+    }
+}
 
 pub trait KeyPair {
     fn pk(&self) -> Result<PubKey, Error>;

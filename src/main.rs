@@ -135,11 +135,15 @@ fn new(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let key_name = String::from(matches.value_of("key").unwrap());
     let authenticator = KeyStorageProvider::new(ksp, key_name)?;
     let vault = Vault::new(authenticator);
+    let thumbprint = vault.thumbprint()?;
     vault.write_new(vault_path)?;
+    println!("Created vault with thumbprint: {}", thumbprint);
     Ok(())
 }
 
 fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
+    let mut vault = Vault::from_path(vault_path.as_path())?;
+    let thumbprint = vault.thumbprint()?;
     let site = String::from(matches.value_of("SITE").unwrap());
     let (username, password) = if matches.is_present("user") {
         (
@@ -147,18 +151,21 @@ fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
             String::from(matches.value_of("password").unwrap()),
         )
     } else {
-        let message = format!("Enter credentials for {}", site);
-        UIPrompt::new("PWRS", &message)
+        let caption = format!("Enter credentials for {}", site);
+        let message = format!("Public key thumbprint: {}", thumbprint);
+        UIPrompt::new(&caption, &message)
             .prompt()
-            .context(format!("Prompt '{}' failed", message))?
+            .context(format!("Prompt '{}' failed", caption))?
             .to_tuple()
     };
-
-    let mut vault = Vault::from_path(vault_path.as_path())?;
     vault
         .insert(site, username, &password)
         .context("Insert vault entry failed")?;
     vault.write_update(vault_path)?;
+    println!(
+        "Password encrypted to public key thumbprint: {}",
+        thumbprint
+    );
     Ok(())
 }
 
@@ -186,6 +193,7 @@ fn get(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
 
 fn ls(vault_path: PathBuf) -> Result<(), Error> {
     let vault = Vault::from_path(vault_path)?;
+    println!("{}", vault.thumbprint()?);
     let mut entries = vault.iter().collect::<Vec<_>>();
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     for (site, entry) in entries {

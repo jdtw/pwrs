@@ -59,6 +59,10 @@ impl Vault {
         }
     }
 
+    pub fn thumbprint(&self) -> Result<String, Error> {
+        self.authenticator.pk().thumbprint()
+    }
+
     pub fn iter<'a>(&'a self) -> VaultIter<'a> {
         VaultIter {
             authenticator: &self.authenticator,
