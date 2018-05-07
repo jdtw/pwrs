@@ -97,7 +97,7 @@ fn main() {
                         .long("user"),
                 ),
         )
-        .subcommand(SubCommand::with_name("ls").about("List the entries in the database"))
+        .subcommand(SubCommand::with_name("ls").about("List the entries in the vault"))
         .subcommand(SubCommand::with_name("del").about("Delete a vault"))
         .get_matches();
 

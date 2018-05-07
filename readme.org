@@ -1,0 +1,28 @@
+* PWRS
+pwrs is a command-line password manager for Windows, that works
+with any smart card that supports ECDH on the P256 curve (such as
+the YubiKey 4).
+** Usage
+#+BEGIN_EXAMPLE
+PWRS 0.1.0
+John Wood <j@jdtw.us>
+Command line password manager
+
+USAGE:
+    pwrs [OPTIONS] <SUBCOMMAND>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -v, --vault <vault>    Vault input file
+
+SUBCOMMANDS:
+    add     Add a new entry to the vault
+    del     Delete a vault
+    get     Retrieve an entry from the vault
+    help    Prints this message or the help of the given subcommand(s)
+    ls      List the entries in the vault
+    new     Create a new vault
+#+END_EXAMPLE
