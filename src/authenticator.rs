@@ -102,17 +102,32 @@ mod tests {
     #[test]
     fn test_test_protect_unprotect() {
         let authenticator = test::Test::new().unwrap();
-        let entry = Entry::new(&authenticator, String::from("john"), "password🔐").unwrap();
-        let decrypted = entry.decrypt_with(&authenticator).unwrap();
+        let entry = Entry::new(
+            &authenticator,
+            "example.com",
+            String::from("john"),
+            "password🔐",
+        ).unwrap();
+        let decrypted = entry.decrypt_with("example.com", &authenticator).unwrap();
         assert_eq!("password🔐", decrypted);
+        assert!(
+            entry
+                .decrypt_with("someothersite.com", &authenticator)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_ksp_protect_unprotect() {
         let authenticator =
             KeyStorageProvider::new(Ksp::Software, String::from("testkey1")).unwrap();
-        let entry = Entry::new(&authenticator, String::from("john"), "password").unwrap();
-        let decrypted = entry.decrypt_with(&authenticator).unwrap();
+        let entry = Entry::new(
+            &authenticator,
+            "facebook.com",
+            String::from("john"),
+            "password",
+        ).unwrap();
+        let decrypted = entry.decrypt_with("facebook.com", &authenticator).unwrap();
         authenticator.delete().unwrap();
         assert_eq!("password", decrypted);
     }

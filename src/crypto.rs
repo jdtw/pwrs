@@ -117,10 +117,13 @@ impl DerivedKeys {
         Ok(String::from_utf8(decrypted)?)
     }
 
-    pub fn mac(&self, label: &str, data: &EncryptedBytes) -> Result<Mac, Error> {
-        Ok(Mac(bcrypt::hmac_sha256_with_label(
-            &self.s.0, &label, &data.0,
-        )?))
+    pub fn mac(&self, site: &str, username: &str, data: &EncryptedBytes) -> Result<Mac, Error> {
+        let hash = bcrypt::Hash::new(bcrypt::HashAlg::HmacSha256(&self.s.0))?;
+        hash.hash_data(site.as_bytes())?;
+        hash.hash_data(username.as_bytes())?;
+        hash.hash_data(&data.0)?;
+        let mac = hash.finish_hash()?;
+        Ok(Mac(mac))
     }
 }
 

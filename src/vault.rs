@@ -16,35 +16,37 @@ pub struct Vault {
     entries: HashMap<String, Entry>,
 }
 
-pub struct EntryRef<'a> {
+pub struct EntryRef<'a, 'b> {
     authenticator: &'a Authenticator,
+    site: &'b str,
     entry: &'a Entry,
 }
 
-impl<'a> EntryRef<'a> {
+impl<'a, 'b> EntryRef<'a, 'b> {
     pub fn username(&self) -> &str {
         self.entry.username()
     }
 
     pub fn site(&self) -> &str {
-        self.entry.site()
+        self.site
     }
 
     pub fn decrypt_password(&self) -> Result<String, Error> {
-        Ok(self.entry.decrypt_with(self.authenticator)?)
+        Ok(self.entry.decrypt_with(self.site, self.authenticator)?)
     }
 }
 
 pub struct VaultIter<'a> {
     authenticator: &'a Authenticator,
-    entries: hash_map::Values<'a, String, Entry>,
+    entries: hash_map::Iter<'a, String, Entry>,
 }
 
 impl<'a> Iterator for VaultIter<'a> {
-    type Item = EntryRef<'a>;
+    type Item = EntryRef<'a, 'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.entries.next().map(|entry| EntryRef {
+        self.entries.next().map(|(site, entry)| EntryRef {
             authenticator: self.authenticator,
+            site,
             entry,
         })
     }
@@ -65,7 +67,7 @@ impl Vault {
     pub fn iter<'a>(&'a self) -> VaultIter<'a> {
         VaultIter {
             authenticator: &self.authenticator,
-            entries: self.entries.values(),
+            entries: self.entries.iter(),
         }
     }
 
@@ -115,17 +117,18 @@ impl Vault {
 
     pub fn insert(
         &mut self,
-        key: String,
+        site: String,
         username: String,
         password: &str,
     ) -> Result<Option<Entry>, Error> {
-        let entry = Entry::new(&self.authenticator, key.clone(), username, password)?;
-        Ok(self.entries.insert(key, entry))
+        let entry = Entry::new(&self.authenticator, &site, username, password)?;
+        Ok(self.entries.insert(site, entry))
     }
 
-    pub fn get(&self, site: &str) -> Option<EntryRef> {
+    pub fn get<'a, 'b>(&'a self, site: &'b str) -> Option<EntryRef<'a, 'b>> {
         self.entries.get(site).map(|entry| EntryRef {
             authenticator: &self.authenticator,
+            site,
             entry,
         })
     }
