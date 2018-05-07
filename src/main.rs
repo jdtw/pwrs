@@ -195,9 +195,9 @@ fn ls(vault_path: PathBuf) -> Result<(), Error> {
     let vault = Vault::from_path(vault_path)?;
     println!("{}", vault.thumbprint()?);
     let mut entries = vault.iter().collect::<Vec<_>>();
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    for (site, entry) in entries {
-        println!("{}, {}", site, entry.username());
+    entries.sort_by(|a, b| a.site().cmp(&b.site()));
+    for entry in entries {
+        println!("{}, {}", entry.site(), entry.username());
     }
 
     Ok(())

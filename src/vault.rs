@@ -26,6 +26,10 @@ impl<'a> EntryRef<'a> {
         self.entry.username()
     }
 
+    pub fn site(&self) -> &str {
+        self.entry.site()
+    }
+
     pub fn decrypt_password(&self) -> Result<String, Error> {
         Ok(self.entry.decrypt_with(self.authenticator)?)
     }
@@ -33,20 +37,15 @@ impl<'a> EntryRef<'a> {
 
 pub struct VaultIter<'a> {
     authenticator: &'a Authenticator,
-    entries: hash_map::Iter<'a, String, Entry>,
+    entries: hash_map::Values<'a, String, Entry>,
 }
 
 impl<'a> Iterator for VaultIter<'a> {
-    type Item = (&'a String, EntryRef<'a>);
+    type Item = EntryRef<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.entries.next().map(|(site, entry)| {
-            (
-                site,
-                EntryRef {
-                    authenticator: self.authenticator,
-                    entry,
-                },
-            )
+        self.entries.next().map(|entry| EntryRef {
+            authenticator: self.authenticator,
+            entry,
         })
     }
 }
@@ -66,7 +65,7 @@ impl Vault {
     pub fn iter<'a>(&'a self) -> VaultIter<'a> {
         VaultIter {
             authenticator: &self.authenticator,
-            entries: self.entries.iter(),
+            entries: self.entries.values(),
         }
     }
 
@@ -120,7 +119,7 @@ impl Vault {
         username: String,
         password: &str,
     ) -> Result<Option<Entry>, Error> {
-        let entry = Entry::new(&self.authenticator, username, password)?;
+        let entry = Entry::new(&self.authenticator, key.clone(), username, password)?;
         Ok(self.entries.insert(key, entry))
     }
 

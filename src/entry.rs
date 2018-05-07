@@ -5,7 +5,7 @@ use error::{Error, PwrsError};
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
     pk: PubKey, // ECDH P256
-    // TODO: Site needs to be part of the entry, and must be included in the MAC
+    site: String,
     username: String,
     encrypted_password: EncryptedBytes, // AES-256 CBC
     mac: Mac,                           // HMAC_SHA256(username||encrypted_password)
@@ -14,6 +14,7 @@ pub struct Entry {
 impl Entry {
     pub fn new(
         authenticator: &Authenticator,
+        site: String,
         username: String,
         password: &str,
     ) -> Result<Entry, Error> {
@@ -25,6 +26,7 @@ impl Entry {
 
         Ok(Entry {
             pk: ephemeral.pk()?,
+            site,
             username,
             encrypted_password,
             mac,
@@ -43,5 +45,9 @@ impl Entry {
 
     pub fn username(&self) -> &str {
         &self.username
+    }
+
+    pub fn site(&self) -> &str {
+        &self.site
     }
 }
