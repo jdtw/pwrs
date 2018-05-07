@@ -2,6 +2,11 @@
 name = "pwrs"
 version = "0.1.0"
 authors = ["John Wood <j@jdtw.us>"]
+license = "MIT"
+repository = "https://github.com/jdtw/pwrs"
+description = """
+A Win32 command-line password manager.
+"""
 
 [dependencies]
 serde = "1.0"
