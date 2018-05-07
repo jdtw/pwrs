@@ -19,7 +19,7 @@ impl Entry {
     ) -> Result<Entry, Error> {
         let ephemeral = EcdhKeyPair::new()?;
         let secret = ephemeral.agree_and_derive(authenticator.pk())?;
-        let keys = DerivedKeys::new(&secret)?;
+        let mut keys = DerivedKeys::new(&secret)?;
         let encrypted_password = keys.encrypt(password)?;
         let mac = keys.mac(site, &username, &encrypted_password)?;
 

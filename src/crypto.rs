@@ -79,7 +79,7 @@ impl KeyPair for EcdhKeyPair {
 struct EncryptionKey(Vec<u8>);
 struct MacSecret(Vec<u8>);
 pub struct DerivedKeys {
-    k: EncryptionKey,
+    k: Option<EncryptionKey>,
     s: MacSecret,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -93,16 +93,23 @@ impl DerivedKeys {
         let keys = bcrypt::key_derivation(&secret, DERIVED_KEYS_LABEL, 64)?;
         let (k, s) = keys.split_at(32);
         Ok(DerivedKeys {
-            k: EncryptionKey(k.to_vec()),
+            k: Some(EncryptionKey(k.to_vec())),
             s: MacSecret(s.to_vec()),
         })
     }
 
-    pub fn encrypt(&self, string: &str) -> Result<EncryptedBytes, Error> {
+    pub fn encrypt(&mut self, string: &str) -> Result<EncryptedBytes, Error> {
         // It's safe to encrypt with a zero IV because we generate new keys
-        // for every encryption.
+        // for every encryption. (This is enforced by the fact that we `take` the
+        // key material here.)
         let iv: [u8; 16] = [0; 16];
-        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k.0)?;
+        let k = bcrypt::generate_symmetric_key(
+            SymAlg::Aes256Cbc,
+            &self.k
+                .take()
+                .expect("Cannot encrypt twice with the same key")
+                .0,
+        )?;
         Ok(EncryptedBytes(bcrypt::encrypt_data(
             &k,
             &iv,
@@ -112,7 +119,7 @@ impl DerivedKeys {
 
     pub fn decrypt(&self, bytes: &EncryptedBytes) -> Result<String, Error> {
         let iv: [u8; 16] = [0; 16];
-        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k.0)?;
+        let k = bcrypt::generate_symmetric_key(SymAlg::Aes256Cbc, &self.k.as_ref().unwrap().0)?;
         let decrypted = bcrypt::decrypt_data(&k, &iv, &bytes.0)?;
         Ok(String::from_utf8(decrypted)?)
     }
@@ -163,5 +170,20 @@ impl KeyPair for KspEcdhKeyPair {
             &secret,
             MASTER_SECRET_LABEL,
         )?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn test_encrypt_twice_fails() {
+        let secret = AgreedSecret(bcrypt::gen_random(32).unwrap());
+        let mut keys = DerivedKeys::new(&secret).unwrap();
+        keys.encrypt("foobar").unwrap();
+        // We don't allow encryption twice (because we use an all-zero IV)
+        keys.encrypt("fizzle").unwrap();
     }
 }
