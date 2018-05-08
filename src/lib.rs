@@ -9,6 +9,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate failure;
 
+extern crate seckey;
+
 pub mod authenticator;
 pub mod crypto;
 pub mod entry;

@@ -18,10 +18,11 @@ impl Entry {
         password: &str,
     ) -> Result<Entry, Error> {
         let ephemeral = EcdhKeyPair::new()?;
-        let secret = ephemeral.agree_and_derive(authenticator.pk())?;
-        let mut keys = DerivedKeys::new(&secret)?;
-        let encrypted_password = keys.encrypt(password)?;
-        let mac = keys.mac(site, &username, &encrypted_password)?;
+        let (k, s) = ephemeral
+            .agree_and_derive(authenticator.pk())?
+            .derive_keys()?;
+        let encrypted_password = k.encrypt(password)?;
+        let mac = s.mac(site, &username, &encrypted_password)?;
 
         Ok(Entry {
             pk: ephemeral.pk()?,
@@ -32,13 +33,15 @@ impl Entry {
     }
 
     pub fn decrypt_with(&self, site: &str, authenticator: &Authenticator) -> Result<String, Error> {
-        let secret = authenticator.authenticator().authenticate(&self.pk)?;
-        let keys = DerivedKeys::new(&secret)?;
-        let mac = keys.mac(site, &self.username, &self.encrypted_password)?;
+        let (k, s) = authenticator
+            .authenticator()
+            .authenticate(&self.pk)?
+            .derive_keys()?;
+        let mac = s.mac(site, &self.username, &self.encrypted_password)?;
         if mac != self.mac {
             bail!(PwrsError::MacVerificationFailed);
         }
-        Ok(keys.decrypt(&self.encrypted_password)?)
+        Ok(k.decrypt(&self.encrypted_password)?)
     }
 
     pub fn username(&self) -> &str {

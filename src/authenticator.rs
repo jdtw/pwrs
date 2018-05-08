@@ -74,21 +74,27 @@ impl Authenticator {
 pub mod test {
     use super::*;
     use crypto::EcdhKeyPair;
+    use seckey::SecKey;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    pub struct Test(PrivKey);
+    pub struct Test([u8; P256_CURVE_SIZE]);
     impl Test {
         pub fn new() -> Result<Authenticator, Error> {
             let key = EcdhKeyPair::new()?;
+            let sk = key.sk()?;
+            let sk = *sk.d.read();
             Ok(Authenticator {
                 pk: key.pk()?,
-                authenticator: AuthenticatorType::Test(Test(key.sk()?)),
+                authenticator: AuthenticatorType::Test(Test(sk)),
             })
         }
     }
+
     impl Authenticate for Test {
         fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
-            let sk = EcdhKeyPair::import(&self.0)?;
+            let sk = EcdhKeyPair::import(&PrivKey {
+                d: SecKey::new(self.0).unwrap(),
+            })?;
             sk.agree_and_derive(pk)
         }
     }
