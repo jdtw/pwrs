@@ -1,5 +1,5 @@
 use error::*;
-use seckey::{zero, SecKey};
+use seckey::SecKey;
 use utils::to_hex;
 use win32;
 use win32::bcrypt;
@@ -31,24 +31,10 @@ pub struct PubKey {
 pub struct PrivKey {
     pub d: SecKey<[u8; P256_CURVE_SIZE]>,
 }
-
-impl Drop for PrivKey {
-    fn drop(&mut self) {
-        zero(&mut *self.d.write());
-    }
-}
-
 #[derive(Debug)]
 pub struct AgreedSecret {
     pub s: SecKey<[u8; SHA2_DIGEST_SIZE]>,
 }
-
-impl Drop for AgreedSecret {
-    fn drop(&mut self) {
-        zero(&mut *self.s.write());
-    }
-}
-
 impl AgreedSecret {
     pub fn derive_keys(self) -> Result<(EncryptionKey, MacSecret), Error> {
         let secret = bcrypt::generate_symmetric_key(SymAlg::Sp800108CtrHmacKdf, &*self.s.read())?;
@@ -106,19 +92,8 @@ impl KeyPair for EcdhKeyPair {
 // AES key 'k', HMAC secret 's'
 #[derive(Debug)]
 pub struct EncryptionKey(pub SecKey<[u8; AES256_KEY_SIZE]>);
-impl Drop for EncryptionKey {
-    fn drop(&mut self) {
-        zero(&mut *self.0.write());
-    }
-}
-
 #[derive(Debug)]
 pub struct MacSecret(pub SecKey<[u8; SHA2_DIGEST_SIZE]>);
-impl Drop for MacSecret {
-    fn drop(&mut self) {
-        zero(&mut *self.0.write());
-    }
-}
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct EncryptedBytes(Vec<u8>);
 
