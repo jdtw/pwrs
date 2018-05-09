@@ -1,6 +1,7 @@
 use authenticator::Authenticator;
 use entry::Entry;
 use error::*;
+use prompt::{Credentials, Password};
 use serde_json;
 
 use std::collections::hash_map;
@@ -31,7 +32,7 @@ impl<'a, 'b> EntryRef<'a, 'b> {
         self.site
     }
 
-    pub fn decrypt_password(&self) -> Result<String, Error> {
+    pub fn decrypt_password(&self) -> Result<Password, Error> {
         Ok(self.entry.decrypt_with(self.site, self.authenticator)?)
     }
 }
@@ -115,13 +116,9 @@ impl Vault {
         self.to_writer(vault_file)
     }
 
-    pub fn insert(
-        &mut self,
-        site: String,
-        username: String,
-        password: &str,
-    ) -> Result<Option<Entry>, Error> {
-        let entry = Entry::new(&self.authenticator, &site, username, password)?;
+    pub fn insert(&mut self, site: String, creds: Credentials) -> Result<Option<Entry>, Error> {
+        let (username, password) = creds.to_tuple();
+        let entry = Entry::new(&self.authenticator, &site, username, password.str())?;
         Ok(self.entries.insert(site, entry))
     }
 
@@ -152,7 +149,10 @@ mod tests {
         let authenticator = test::Test::new().unwrap();
         let mut vault = Vault::new(authenticator);
         vault
-            .insert(String::from("key"), String::from("username"), "password")
+            .insert(
+                String::from("key"),
+                Credentials::new(String::from("username"), String::from("password")),
+            )
             .unwrap();
 
         {
@@ -160,7 +160,7 @@ mod tests {
             let username = entry.username();
             assert_eq!(username, "username");
             let password = entry.decrypt_password().unwrap();
-            assert_eq!(password, "password");
+            assert_eq!(password.str(), "password");
         }
         // And make sure the entry didn't go anywhere
         {
@@ -168,18 +168,21 @@ mod tests {
             let username = entry.username();
             assert_eq!(username, "username");
             let password = entry.decrypt_password().unwrap();
-            assert_eq!(password, "password");
+            assert_eq!(password.str(), "password");
         }
         // Replace the entry
         vault
-            .insert(String::from("key"), String::from("username2"), "password2")
+            .insert(
+                String::from("key"),
+                Credentials::new(String::from("username2"), String::from("password2")),
+            )
             .unwrap();
         {
             let entry = vault.get("key").unwrap();
             let username = entry.username();
             assert_eq!(username, "username2");
             let password = entry.decrypt_password().unwrap();
-            assert_eq!(password, "password2");
+            assert_eq!(password.str(), "password2");
         }
         // Now remove it
         let removed = vault.remove("key").unwrap();
@@ -192,10 +195,16 @@ mod tests {
         let authenticator = test::Test::new().unwrap();
         let mut vault = Vault::new(authenticator);
         vault
-            .insert(String::from("foo.com"), String::from("foo"), "bar")
+            .insert(
+                String::from("foo.com"),
+                Credentials::new(String::from("foo"), String::from("bar")),
+            )
             .unwrap();
         vault
-            .insert(String::from("example.com"), String::from("user"), "pass")
+            .insert(
+                String::from("example.com"),
+                Credentials::new(String::from("user"), String::from("pass")),
+            )
             .unwrap();
 
         let mut buffer = Vec::new();
@@ -207,6 +216,6 @@ mod tests {
         let username = entry.username();
         assert_eq!(username, "foo");
         let password = entry.decrypt_password().unwrap();
-        assert_eq!(password, "bar");
+        assert_eq!(password.str(), "bar");
     }
 }

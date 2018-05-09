@@ -145,9 +145,13 @@ fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let mut vault = Vault::from_path(vault_path.as_path())?;
     let thumbprint = vault.thumbprint()?;
     let site = String::from(matches.value_of("SITE").unwrap());
-    let (username, password) = if matches.is_present("user") {
-        (
+    let creds = if matches.is_present("user") {
+        Credentials::new(
             String::from(matches.value_of("user").unwrap()),
+            // Note that we're copying the password here, so the copy
+            // still owned by `matches` may remain in memory, which is
+            // less than ideal (if it wasn't obvious enough that passing
+            // in a password on the command line isn't very secure...).
             String::from(matches.value_of("password").unwrap()),
         )
     } else {
@@ -156,10 +160,9 @@ fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
         UIPrompt::new(&caption, &message)
             .prompt()
             .context(format!("Prompt '{}' failed", caption))?
-            .to_tuple()
     };
     vault
-        .insert(site, username, &password)
+        .insert(site, creds)
         .context("Insert vault entry failed")?;
     vault.write_update(vault_path)?;
     println!(
@@ -181,9 +184,9 @@ fn get(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
             .decrypt_password()
             .context("Password decryption failed")?;
         if matches.is_present("dump") {
-            println!("Password: {}", password);
+            println!("Password: {}", password.str());
         } else {
-            Clipboard::new()?.set_string(&password)?;
+            Clipboard::new()?.set_string(password.str())?;
             println!("Password copied to clipboard");
         }
     }

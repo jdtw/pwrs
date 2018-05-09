@@ -1,6 +1,6 @@
 use error::*;
 use win32::credui;
-pub use win32::credui::Credentials;
+pub use win32::credui::{Credentials, Password};
 
 pub trait Prompt {
     fn prompt(&self) -> Result<Credentials, PwrsError>;

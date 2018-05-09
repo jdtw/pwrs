@@ -1,6 +1,7 @@
 use authenticator::Authenticator;
 use crypto::*;
 use error::{Error, PwrsError};
+use prompt::Password;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
@@ -32,7 +33,11 @@ impl Entry {
         })
     }
 
-    pub fn decrypt_with(&self, site: &str, authenticator: &Authenticator) -> Result<String, Error> {
+    pub fn decrypt_with(
+        &self,
+        site: &str,
+        authenticator: &Authenticator,
+    ) -> Result<Password, Error> {
         let (k, s) = authenticator
             .authenticator()
             .authenticate(&self.pk)?
@@ -41,7 +46,7 @@ impl Entry {
         if mac != self.mac {
             bail!(PwrsError::MacVerificationFailed);
         }
-        Ok(k.decrypt(&self.encrypted_password)?)
+        Ok(Password::new(k.decrypt(&self.encrypted_password)?))
     }
 
     pub fn username(&self) -> &str {

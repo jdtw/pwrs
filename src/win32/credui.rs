@@ -1,8 +1,8 @@
 use error::*;
+use memsec;
 use std::ffi::OsString;
 use std::mem;
 use std::os::windows::ffi::OsStringExt;
-use std::ptr;
 use std::ptr::null_mut;
 use win32::winapi::ctypes::c_void;
 use win32::winapi::shared::winerror::{ERROR_CANCELLED, ERROR_INSUFFICIENT_BUFFER};
@@ -12,38 +12,75 @@ use win32::winapi::um::wincred::*;
 use win32::ToLpcwstr;
 
 #[derive(Debug, PartialEq)]
+pub struct Password {
+    password: String,
+}
+
+impl Password {
+    pub fn new(password: String) -> Self {
+        Password { password }
+    }
+    pub fn str(&self) -> &str {
+        &self.password
+    }
+}
+
+impl Drop for Password {
+    fn drop(&mut self) {
+        unsafe {
+            let bytes = self.password.as_mut_vec();
+            memsec::memzero(bytes.as_mut_ptr(), bytes.len());
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Credentials {
     username: String,
-    password: String,
+    password: Password,
 }
 
 impl Credentials {
     pub fn new(username: String, password: String) -> Self {
-        Credentials { username, password }
+        Credentials {
+            username,
+            password: Password::new(password),
+        }
     }
     pub fn username(&self) -> &str {
         &self.username
     }
     pub fn password(&self) -> &str {
-        &self.password
+        self.password.str()
     }
-    pub fn to_tuple(self) -> (String, String) {
+    pub fn to_tuple(self) -> (String, Password) {
         (self.username, self.password)
     }
 }
 
-pub struct AuthBuffer(Vec<u8>);
+pub struct AuthBuffer {
+    ptr: *mut c_void,
+    len: usize,
+}
 impl AuthBuffer {
-    fn new(ptr: *const c_void, count: usize) -> Self {
+    fn new(ptr: *mut c_void, len: usize) -> Self {
+        AuthBuffer { ptr, len }
+    }
+    fn as_mut_ptr(&mut self) -> *mut c_void {
+        self.ptr
+    }
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+impl Drop for AuthBuffer {
+    fn drop(&mut self) {
         unsafe {
-            let mut buffer: Vec<u8> = Vec::with_capacity(count);
-            ptr::copy_nonoverlapping(ptr as *const u8, buffer.as_mut_ptr(), count);
-            buffer.set_len(count);
-            AuthBuffer(buffer)
+            memsec::memzero(self.ptr as *mut u8, self.len);
+            CoTaskMemFree(self.ptr);
         }
     }
 }
-// TODO: impl Drop for AuthBuffer and secure zero it
 
 pub fn prompt_for_windows_credentials(
     caption: &str,
@@ -84,10 +121,8 @@ pub fn prompt_for_windows_credentials(
                 error as i32,
             ));
         }
-        let copy = AuthBuffer::new(auth_buffer, auth_buffer_byte_count as usize);
-        // TODO: Secure zero!
-        CoTaskMemFree(auth_buffer);
-        Ok(copy)
+        let auth_buffer = AuthBuffer::new(auth_buffer, auth_buffer_byte_count as usize);
+        Ok(auth_buffer)
     }
 }
 
@@ -97,8 +132,8 @@ pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credential
         let mut password_len = 0;
         let success = CredUnPackAuthenticationBufferW(
             0,
-            buffer.0.as_mut_ptr() as *mut c_void,
-            buffer.0.len() as u32,
+            buffer.as_mut_ptr(),
+            buffer.len() as u32,
             null_mut(),
             &mut username_len,
             null_mut(),
@@ -119,8 +154,8 @@ pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credential
         let mut password_buffer = Vec::with_capacity(password_len as usize);
         let success = CredUnPackAuthenticationBufferW(
             0,
-            buffer.0.as_mut_ptr() as *mut c_void,
-            buffer.0.len() as u32,
+            buffer.as_mut_ptr(),
+            buffer.len() as u32,
             username_buffer.as_mut_ptr(),
             &mut username_len,
             null_mut(),
@@ -137,9 +172,13 @@ pub fn unpack_authentication_buffer(mut buffer: AuthBuffer) -> Result<Credential
         // Strip off the null terminators before converting to rust strings.
         username_buffer.set_len(username_len as usize - 1);
         password_buffer.set_len(password_len as usize - 1);
-        let username = OsString::from_wide(&username_buffer).into_string().unwrap();
-        let password = OsString::from_wide(&password_buffer).into_string().unwrap();
-        Ok(Credentials { username, password })
+        let username = OsString::from_wide(&username_buffer).into_string();
+        let password = OsString::from_wide(&password_buffer).into_string();
+        memsec::memzero(
+            password_buffer.as_mut_ptr() as *mut u8,
+            password_buffer.len(),
+        );
+        Ok(Credentials::new(username.unwrap(), password.unwrap()))
     }
 }
 

@@ -115,7 +115,7 @@ mod tests {
             "password🔐",
         ).unwrap();
         let decrypted = entry.decrypt_with("example.com", &authenticator).unwrap();
-        assert_eq!("password🔐", decrypted);
+        assert_eq!("password🔐", decrypted.str());
         assert!(
             entry
                 .decrypt_with("someothersite.com", &authenticator)
@@ -135,6 +135,6 @@ mod tests {
         ).unwrap();
         let decrypted = entry.decrypt_with("facebook.com", &authenticator).unwrap();
         authenticator.delete().unwrap();
-        assert_eq!("password", decrypted);
+        assert_eq!("password", decrypted.str());
     }
 }
