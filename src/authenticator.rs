@@ -13,11 +13,11 @@ pub enum Key {
 }
 
 impl Key {
-    pub fn to_authenticator(self) -> Result<Authenticator, Error> {
+    pub fn into_authenticator(self) -> Result<Authenticator, Error> {
         let key = {
             let (ksp, key_name) = match &self {
-                &Key::Software(ref key_name) => (KeyStorage::Software, key_name),
-                &Key::SmartCard(ref key_name) => (KeyStorage::SmartCard, key_name),
+                Key::Software(key_name) => (KeyStorage::Software, key_name),
+                Key::SmartCard(key_name) => (KeyStorage::SmartCard, key_name),
             };
             KspEcdhKeyPair::new(ksp, key_name)?
         };
@@ -39,8 +39,8 @@ impl Key {
 impl Authenticate for Key {
     fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
         let (ksp, key_name) = match self {
-            &Key::Software(ref key_name) => (KeyStorage::Software, key_name),
-            &Key::SmartCard(ref key_name) => (KeyStorage::SmartCard, key_name),
+            Key::Software(key_name) => (KeyStorage::Software, key_name),
+            Key::SmartCard(key_name) => (KeyStorage::SmartCard, key_name),
         };
         KspEcdhKeyPair::open(ksp, key_name)?.agree_and_derive(pk)
     }
@@ -67,10 +67,10 @@ impl Authenticator {
     // Authenticate takes in a public key and returns the result of ECDH
     // key agreement with that key, using the authenticator's private key.
     pub fn authenticator(&self) -> &Authenticate {
-        match &self.authenticator {
+        match self.authenticator {
             #[cfg(test)]
-            &AuthenticatorType::Test(ref test) => test,
-            &AuthenticatorType::Ksp(ref ksp) => ksp,
+            AuthenticatorType::Test(ref test) => test,
+            AuthenticatorType::Ksp(ref ksp) => ksp,
         }
     }
 
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn test_ksp_protect_unprotect() {
         let authenticator = Key::Software(String::from("testkey1"))
-            .to_authenticator()
+            .into_authenticator()
             .unwrap();
         let entry = Entry::new(
             &authenticator,

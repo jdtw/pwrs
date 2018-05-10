@@ -42,7 +42,7 @@ impl Credentials {
     pub fn password(&self) -> &str {
         self.password.str()
     }
-    pub fn to_tuple(self) -> (String, Password) {
+    pub fn into_tuple(self) -> (String, Password) {
         (self.username, self.password)
     }
 }

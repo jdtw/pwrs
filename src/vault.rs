@@ -65,7 +65,7 @@ impl Vault {
         self.authenticator.pk().thumbprint()
     }
 
-    pub fn iter<'a>(&'a self) -> VaultIter<'a> {
+    pub fn iter(&self) -> VaultIter {
         VaultIter {
             authenticator: &self.authenticator,
             entries: self.entries.iter(),
@@ -77,7 +77,8 @@ impl Vault {
     }
 
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
-        Ok(serde_json::to_writer_pretty(writer, &self)?)
+        serde_json::to_writer_pretty(writer, &self)?;
+        Ok(())
     }
 
     pub fn from_reader<R: Read>(reader: R) -> Result<Vault, Error> {
@@ -117,7 +118,7 @@ impl Vault {
     }
 
     pub fn insert(&mut self, site: String, creds: Credentials) -> Result<Option<Entry>, Error> {
-        let (username, password) = creds.to_tuple();
+        let (username, password) = creds.into_tuple();
         let entry = Entry::new(&self.authenticator, &site, username, password.str())?;
         Ok(self.entries.insert(site, entry))
     }

@@ -1,3 +1,6 @@
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+
 extern crate clipboard_win;
 use clipboard_win::Clipboard;
 
@@ -102,7 +105,7 @@ fn main() {
         .subcommand(SubCommand::with_name("del").about("Delete a vault"))
         .get_matches();
 
-    if let Err(ref e) = run(matches) {
+    if let Err(e) = run(&matches) {
         let stderr = &mut std::io::stderr();
         let errmsg = "Error writing to stderr";
 
@@ -134,7 +137,7 @@ fn new(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     } else {
         unreachable!()
     };
-    let authenticator = key.to_authenticator()?;
+    let authenticator = key.into_authenticator()?;
     let vault = Vault::new(authenticator);
     let thumbprint = vault.thumbprint()?;
     vault.write_new(vault_path)?;
@@ -178,7 +181,7 @@ fn get(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let vault = Vault::from_path(vault_path)?;
     let entry = vault
         .get(site)
-        .ok_or(PwrsError::EntryNotFound(String::from(site)))?;
+        .ok_or_else(|| PwrsError::EntryNotFound(String::from(site)))?;
     println!("Username: {}", entry.username());
     if !matches.is_present("user") {
         let password = entry
@@ -207,7 +210,7 @@ fn ls(vault_path: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
-fn del(vault_path: PathBuf) -> Result<(), Error> {
+fn del(vault_path: &PathBuf) -> Result<(), Error> {
     let vault = Vault::from_path(vault_path.as_path())?;
     vault.delete().context("Failed to remove the vault key")?;
     fs::remove_file(vault_path.as_path()).context(format!(
@@ -218,14 +221,14 @@ fn del(vault_path: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
-fn run(matches: ArgMatches) -> Result<(), Error> {
-    let vault_path = vault_path(&matches)?;
+fn run(matches: &ArgMatches) -> Result<(), Error> {
+    let vault_path = vault_path(matches)?;
     match matches.subcommand() {
         ("new", Some(matches)) => new(vault_path, matches),
         ("add", Some(matches)) => add(vault_path, matches),
         ("get", Some(matches)) => get(vault_path, matches),
         ("ls", _) => ls(vault_path),
-        ("del", _) => del(vault_path),
+        ("del", _) => del(&vault_path),
         _ => unreachable!(),
     }
 }

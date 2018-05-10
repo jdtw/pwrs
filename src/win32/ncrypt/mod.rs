@@ -12,9 +12,9 @@ use win32::{CloseHandle, Handle, ToLpcwstr};
 use winapi::ctypes::c_void;
 use winapi::shared::bcrypt::*;
 
-const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010006e;
-const NTE_EXISTS: u32 = 0x8009000f;
-const NTE_BAD_KEYSET: u32 = 0x80090016;
+const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010_006e;
+const NTE_EXISTS: u32 = 0x8009_000f;
+const NTE_BAD_KEYSET: u32 = 0x8009_0016;
 
 pub struct Object;
 impl CloseHandle for Object {
@@ -62,9 +62,9 @@ pub fn create_persisted_ecdh_p256_key(
         let algo = BCRYPT_ECDH_P256_ALGORITHM;
         let mut key = Handle::new();
         let name_bytes = key_name.map(|n| n.to_lpcwstr());
-        let name_ptr = match &name_bytes {
-            &Some(ref bytes) => bytes.as_ptr(),
-            &None => null(),
+        let name_ptr = match name_bytes {
+            Some(bytes) => bytes.as_ptr(),
+            None => null(),
         };
         let status = NCryptCreatePersistedKey(
             provider.get(),

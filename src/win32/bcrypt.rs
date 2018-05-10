@@ -120,6 +120,7 @@ pub fn generate_ecdh_p256_key_pair() -> Result<Handle<Key>, PwrsError> {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Blob {
     EccPublic,
     #[cfg(test)]
@@ -129,9 +130,9 @@ enum Blob {
 impl ToString for Blob {
     fn to_string(&self) -> String {
         String::from(match self {
-            &Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
+            Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
             #[cfg(test)]
-            &Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
+            Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
         })
     }
 }
@@ -267,6 +268,7 @@ pub fn derive_key(secret: &Handle<Secret>, label: &str) -> Result<AgreedSecret, 
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum SymAlg {
     Sp800108CtrHmacKdf,
     Aes256Cbc,
@@ -394,7 +396,7 @@ pub fn encrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
 
 pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, PwrsError> {
     unsafe {
-        let mut iv: Vec<u8> = iv.iter().cloned().collect();
+        let mut iv = iv.to_vec();
         let mut result_byte_count = 0;
 
         let status = BCryptDecrypt(
@@ -452,9 +454,9 @@ impl<'a> Hash<'a> {
                 handle: Handle::new(),
                 alg,
             };
-            let (alg_handle, secret, secret_len) = match &hash.alg {
-                &HashAlg::Sha1 => (BCRYPT_SHA1_ALG_HANDLE, null(), 0),
-                &HashAlg::HmacSha256(ref secret) => {
+            let (alg_handle, secret, secret_len) = match hash.alg {
+                HashAlg::Sha1 => (BCRYPT_SHA1_ALG_HANDLE, null(), 0),
+                HashAlg::HmacSha256(secret) => {
                     (BCRYPT_HMAC_SHA256_ALG_HANDLE, secret.as_ptr(), secret.len())
                 }
             };

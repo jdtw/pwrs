@@ -14,9 +14,8 @@ type NCRYPT_PROV_HANDLE = ULONG_PTR;
 type NCRYPT_KEY_HANDLE = ULONG_PTR;
 type NCRYPT_SECRET_HANDLE = ULONG_PTR;
 
-pub const MS_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Software Key Storage Provider";
-pub const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &'static str =
-    "Microsoft Smart Card Key Storage Provider";
+pub const MS_KEY_STORAGE_PROVIDER: &str = "Microsoft Software Key Storage Provider";
+pub const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &str = "Microsoft Smart Card Key Storage Provider";
 
 #[link(name = "ncrypt")]
 extern "stdcall" {

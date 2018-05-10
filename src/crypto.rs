@@ -18,8 +18,8 @@ pub enum KeyStorage {
     SmartCard,
 }
 
-const MASTER_SECRET_LABEL: &'static str = "pwrs_master_secret";
-const DERIVED_KEYS_LABEL: &'static str = "pwrs_derived_keys";
+const MASTER_SECRET_LABEL: &str = "pwrs_master_secret";
+const DERIVED_KEYS_LABEL: &str = "pwrs_derived_keys";
 
 pub const P256_CURVE_SIZE: usize = 32;
 pub const SHA2_DIGEST_SIZE: usize = 32;
@@ -161,7 +161,8 @@ impl KspEcdhKeyPair {
     }
 
     pub fn delete(self) -> Result<(), Error> {
-        Ok(ncrypt::delete_key(self.key)?)
+        ncrypt::delete_key(self.key)?;
+        Ok(())
     }
 }
 
