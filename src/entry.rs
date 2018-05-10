@@ -1,7 +1,7 @@
 use authenticator::Authenticator;
+use credentials::Password;
 use crypto::*;
 use error::{Error, PwrsError};
-use prompt::Password;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Entry {

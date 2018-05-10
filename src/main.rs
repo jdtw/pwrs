@@ -6,7 +6,8 @@ extern crate clap;
 use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
 
 extern crate pwrs;
-use pwrs::authenticator::{KeyStorageProvider, Ksp};
+use pwrs::authenticator::Key;
+use pwrs::credentials::*;
 use pwrs::error::*;
 use pwrs::prompt::*;
 use pwrs::vault::Vault;
@@ -125,15 +126,15 @@ fn vault_path(matches: &ArgMatches) -> Result<PathBuf, Error> {
 }
 
 fn new(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
-    let ksp = if matches.is_present("software") {
-        Ksp::Software
+    let key_name = String::from(matches.value_of("key").unwrap());
+    let key = if matches.is_present("software") {
+        Key::Software(key_name)
     } else if matches.is_present("smartcard") {
-        Ksp::SmartCard
+        Key::SmartCard(key_name)
     } else {
         unreachable!()
     };
-    let key_name = String::from(matches.value_of("key").unwrap());
-    let authenticator = KeyStorageProvider::new(ksp, key_name)?;
+    let authenticator = key.to_authenticator()?;
     let vault = Vault::new(authenticator);
     let thumbprint = vault.thumbprint()?;
     vault.write_new(vault_path)?;

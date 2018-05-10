@@ -1,6 +1,5 @@
 use crypto::*;
 use error::Error;
-pub use win32::ncrypt::Ksp;
 
 pub trait Authenticate {
     // In: entry public key, Out: secret
@@ -8,28 +7,42 @@ pub trait Authenticate {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct KeyStorageProvider {
-    ksp: Ksp,
-    key_name: String,
+pub enum Key {
+    Software(String),
+    SmartCard(String),
 }
 
-impl KeyStorageProvider {
-    pub fn new(ksp: Ksp, key_name: String) -> Result<Authenticator, Error> {
-        let key = KspEcdhKeyPair::new(ksp, &key_name)?;
+impl Key {
+    pub fn to_authenticator(self) -> Result<Authenticator, Error> {
+        let key = {
+            let (ksp, key_name) = match &self {
+                &Key::Software(ref key_name) => (KeyStorage::Software, key_name),
+                &Key::SmartCard(ref key_name) => (KeyStorage::SmartCard, key_name),
+            };
+            KspEcdhKeyPair::new(ksp, key_name)?
+        };
         Ok(Authenticator {
             pk: key.pk()?,
-            authenticator: AuthenticatorType::Ksp(KeyStorageProvider { ksp, key_name }),
+            authenticator: AuthenticatorType::Ksp(self),
         })
     }
 
     fn delete(self) -> Result<(), Error> {
-        KspEcdhKeyPair::open(self.ksp, &self.key_name)?.delete()
+        let (ksp, key_name) = match self {
+            Key::Software(key_name) => (KeyStorage::Software, key_name),
+            Key::SmartCard(key_name) => (KeyStorage::SmartCard, key_name),
+        };
+        KspEcdhKeyPair::open(ksp, &key_name)?.delete()
     }
 }
 
-impl Authenticate for KeyStorageProvider {
+impl Authenticate for Key {
     fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error> {
-        KspEcdhKeyPair::open(self.ksp, &self.key_name)?.agree_and_derive(pk)
+        let (ksp, key_name) = match self {
+            &Key::Software(ref key_name) => (KeyStorage::Software, key_name),
+            &Key::SmartCard(ref key_name) => (KeyStorage::SmartCard, key_name),
+        };
+        KspEcdhKeyPair::open(ksp, key_name)?.agree_and_derive(pk)
     }
 }
 
@@ -37,7 +50,7 @@ impl Authenticate for KeyStorageProvider {
 enum AuthenticatorType {
     #[cfg(test)]
     Test(test::Test),
-    Ksp(KeyStorageProvider),
+    Ksp(Key),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -125,8 +138,9 @@ mod tests {
 
     #[test]
     fn test_ksp_protect_unprotect() {
-        let authenticator =
-            KeyStorageProvider::new(Ksp::Software, String::from("testkey1")).unwrap();
+        let authenticator = Key::Software(String::from("testkey1"))
+            .to_authenticator()
+            .unwrap();
         let entry = Entry::new(
             &authenticator,
             "facebook.com",

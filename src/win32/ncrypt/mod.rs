@@ -8,9 +8,9 @@ use std::mem;
 use std::ptr::{null, null_mut};
 use std::string::ToString;
 use win32::bcrypt::BCryptEcdhP256KeyBlob;
-use win32::winapi::ctypes::c_void;
-use win32::winapi::shared::bcrypt::*;
 use win32::{CloseHandle, Handle, ToLpcwstr};
+use winapi::ctypes::c_void;
+use winapi::shared::bcrypt::*;
 
 const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010006e;
 const NTE_EXISTS: u32 = 0x8009000f;
@@ -25,30 +25,14 @@ impl CloseHandle for Object {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
-pub enum Ksp {
-    Software,
-    SmartCard,
-    Tpm,
-    Ngc,
-}
-
-impl ToString for Ksp {
-    fn to_string(&self) -> String {
-        String::from(match self {
-            &Ksp::Software => MS_KEY_STORAGE_PROVIDER,
-            &Ksp::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
-            &Ksp::Tpm => MS_PLATFORM_KEY_STORAGE_PROVIDER,
-            &Ksp::Ngc => MS_NGC_KEY_STORAGE_PROVIDER,
-        })
-    }
-}
-
-pub fn open_storage_provider(ksp: Ksp) -> Result<Handle<Object>, PwrsError> {
+pub fn open_storage_provider(ksp: KeyStorage) -> Result<Handle<Object>, PwrsError> {
     unsafe {
+        let ksp_name = match ksp {
+            KeyStorage::Software => MS_KEY_STORAGE_PROVIDER,
+            KeyStorage::SmartCard => MS_SMART_CARD_KEY_STORAGE_PROVIDER,
+        };
         let mut prov = Handle::new();
-        let status =
-            NCryptOpenStorageProvider(prov.put(), ksp.to_string().to_lpcwstr().as_ptr(), 0);
+        let status = NCryptOpenStorageProvider(prov.put(), ksp_name.to_lpcwstr().as_ptr(), 0);
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptOpenStorageProvider", status));
         }
@@ -235,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_create_delete_persisted_sw_key() {
-        let prov = open_storage_provider(Ksp::Software).unwrap();
+        let prov = open_storage_provider(KeyStorage::Software).unwrap();
         let key = create_persisted_ecdh_p256_key(&prov, Some("test-key-name")).unwrap();
         finalize_key(&key).unwrap();
         delete_key(key).unwrap();
@@ -243,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_open_key() {
-        let prov = open_storage_provider(Ksp::Software).unwrap();
+        let prov = open_storage_provider(KeyStorage::Software).unwrap();
         {
             let key = create_persisted_ecdh_p256_key(&prov, Some("test-key-name-2")).unwrap();
             finalize_key(&key).unwrap();
@@ -254,14 +238,14 @@ mod tests {
 
     #[test]
     fn test_ephemeral_smart_card_key() {
-        let prov = open_storage_provider(Ksp::SmartCard).unwrap();
+        let prov = open_storage_provider(KeyStorage::SmartCard).unwrap();
         let key = create_persisted_ecdh_p256_key(&prov, None).unwrap();
         finalize_key(&key).unwrap();
     }
 
     #[test]
     fn test_export() {
-        let prov = open_storage_provider(Ksp::Software).unwrap();
+        let prov = open_storage_provider(KeyStorage::Software).unwrap();
         let key = create_persisted_ecdh_p256_key(&prov, None).unwrap();
         finalize_key(&key).unwrap();
 
@@ -272,13 +256,13 @@ mod tests {
     #[test]
     fn test_ecdh_key_agreement() {
         // Create and export Alice's key in software KSP
-        let prov_alice = open_storage_provider(Ksp::Software).unwrap();
+        let prov_alice = open_storage_provider(KeyStorage::Software).unwrap();
         let key_alice = create_persisted_ecdh_p256_key(&prov_alice, None).unwrap();
         finalize_key(&key_alice).unwrap();
         let pubkey_alice = export_ecdh_p256_pub_key(&key_alice).unwrap();
 
         // Create and export Bob's key in software KSP
-        let prov_bob = open_storage_provider(Ksp::Software).unwrap();
+        let prov_bob = open_storage_provider(KeyStorage::Software).unwrap();
         let key_bob = create_persisted_ecdh_p256_key(&prov_bob, None).unwrap();
         finalize_key(&key_bob).unwrap();
         let pubkey_bob = export_ecdh_p256_pub_key(&key_bob).unwrap();

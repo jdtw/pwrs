@@ -5,9 +5,9 @@ use std::mem;
 use std::ptr;
 use std::ptr::{null, null_mut};
 use std::string::ToString;
-use win32::winapi::ctypes::c_void;
-use win32::winapi::shared::bcrypt::*;
 use win32::{CloseHandle, Handle, ToLpcwstr};
+use winapi::ctypes::c_void;
+use winapi::shared::bcrypt::*;
 
 #[repr(C)]
 pub struct BCryptEcdhP256KeyBlob {
@@ -53,6 +53,7 @@ impl BCryptEcdhP256KeyBlob {
         }
     }
 
+    #[cfg(test)]
     pub fn from_priv_key(priv_key: &PrivKey) -> Self {
         unsafe {
             let mut key_struct = BCryptEcdhP256KeyBlob::new();
@@ -73,11 +74,6 @@ impl BCryptEcdhP256KeyBlob {
         assert_eq!(self.header.dwMagic, magic);
         assert_eq!(self.header.cbKey, P256_CURVE_SIZE as u32);
     }
-}
-
-pub enum HandleType {
-    Hash,
-    SymmetricKey,
 }
 
 pub struct HashHandle;
@@ -126,6 +122,7 @@ pub fn generate_ecdh_p256_key_pair() -> Result<Handle<Key>, PwrsError> {
 
 enum Blob {
     EccPublic,
+    #[cfg(test)]
     EccPrivate,
 }
 
@@ -133,6 +130,7 @@ impl ToString for Blob {
     fn to_string(&self) -> String {
         String::from(match self {
             &Blob::EccPublic => BCRYPT_ECCPUBLIC_BLOB,
+            #[cfg(test)]
             &Blob::EccPrivate => BCRYPT_ECCPRIVATE_BLOB,
         })
     }
@@ -143,6 +141,7 @@ pub fn import_ecdh_p256_pub_key(pub_key: &PubKey) -> Result<Handle<Key>, PwrsErr
     import_ecdh_p256_key(Blob::EccPublic, key_struct)
 }
 
+#[cfg(test)]
 pub fn import_ecdh_p256_priv_key(priv_key: &PrivKey) -> Result<Handle<Key>, PwrsError> {
     let key_struct = BCryptEcdhP256KeyBlob::from_priv_key(priv_key);
     import_ecdh_p256_key(Blob::EccPrivate, key_struct)
@@ -200,6 +199,7 @@ pub fn export_ecdh_p256_pub_key(key: &Handle<Key>) -> Result<PubKey, PwrsError> 
     Ok(PubKey { x: key.x, y: key.y })
 }
 
+#[cfg(test)]
 pub fn export_ecdh_p256_priv_key(key: &Handle<Key>) -> Result<PrivKey, PwrsError> {
     let mut key = export_ecdh_p256_key(key, Blob::EccPrivate)?;
     let key = TempKey::from(&mut key);
@@ -437,7 +437,6 @@ pub fn decrypt_data(key: &Handle<Key>, iv: &[u8], data: &[u8]) -> Result<Vec<u8>
 
 enum HashAlg<'a> {
     Sha1,
-    Sha256,
     HmacSha256(&'a [u8]),
 }
 
@@ -455,7 +454,6 @@ impl<'a> Hash<'a> {
             };
             let (alg_handle, secret, secret_len) = match &hash.alg {
                 &HashAlg::Sha1 => (BCRYPT_SHA1_ALG_HANDLE, null(), 0),
-                &HashAlg::Sha256 => (BCRYPT_SHA256_ALG_HANDLE, null(), 0),
                 &HashAlg::HmacSha256(ref secret) => {
                     (BCRYPT_HMAC_SHA256_ALG_HANDLE, secret.as_ptr(), secret.len())
                 }
@@ -521,27 +519,6 @@ impl<'a> Hash<'a> {
             }
             Ok(output)
         }
-    }
-}
-
-pub struct HashSha2<'a> {
-    hasher: Hash<'a>,
-}
-
-impl<'a> HashSha2<'a> {
-    pub fn new() -> Result<Self, PwrsError> {
-        Ok(HashSha2 {
-            hasher: Hash::new(HashAlg::Sha256)?,
-        })
-    }
-
-    pub fn hash(self, bytes: &[u8]) -> Result<Self, PwrsError> {
-        self.hasher.hash_data(bytes)?;
-        Ok(self)
-    }
-
-    pub fn finish_hash(self) -> Result<[u8; SHA2_DIGEST_SIZE], PwrsError> {
-        self.hasher.finish_hash_sha2()
     }
 }
 
@@ -639,24 +616,6 @@ mod tests {
 
         assert_eq!(output1, output2);
         assert!(output1.len() == 20);
-    }
-
-    #[test]
-    fn test_hash_data_sha2() {
-        let input: [u8; 5] = [1, 2, 3, 4, 5];
-
-        let hash = Hash::new(HashAlg::Sha256).unwrap();
-        hash.hash_data(&input).unwrap();
-        hash.hash_data(&input).unwrap();
-        let output1 = hash.finish_hash_sha2().unwrap();
-
-        let hash = Hash::new(HashAlg::Sha256).unwrap();
-        hash.hash_data(&input).unwrap();
-        hash.hash_data(&input).unwrap();
-        let output2 = hash.finish_hash_sha2().unwrap();
-
-        assert_eq!(output1, output2);
-        assert!(output1.len() == 32);
     }
 
     #[test]

@@ -5,13 +5,18 @@ use win32;
 use win32::bcrypt;
 use win32::bcrypt::SymAlg;
 use win32::ncrypt;
-pub use win32::ncrypt::Ksp;
 
 // The ciphersuite we use is:
 // - ECDH on P256 curve
 // - NIST SP800 108 CTR KDF
 // - AES256 CBC
 // - HMAC SHA256
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
+pub enum KeyStorage {
+    Software,
+    SmartCard,
+}
 
 const MASTER_SECRET_LABEL: &'static str = "pwrs_master_secret";
 const DERIVED_KEYS_LABEL: &'static str = "pwrs_derived_keys";
@@ -27,6 +32,7 @@ pub struct PubKey {
     pub y: [u8; P256_CURVE_SIZE],
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 pub struct PrivKey {
     pub d: SecKey<[u8; P256_CURVE_SIZE]>,
@@ -67,11 +73,13 @@ impl EcdhKeyPair {
         Ok(EcdhKeyPair { key })
     }
 
+    #[cfg(test)]
     pub fn import(sk: &PrivKey) -> Result<Self, Error> {
         let key = bcrypt::import_ecdh_p256_priv_key(sk)?;
         Ok(EcdhKeyPair { key })
     }
 
+    #[cfg(test)]
     pub fn sk(&self) -> Result<PrivKey, Error> {
         Ok(bcrypt::export_ecdh_p256_priv_key(&self.key)?)
     }
@@ -139,14 +147,14 @@ pub struct KspEcdhKeyPair {
 }
 
 impl KspEcdhKeyPair {
-    pub fn new(ksp: Ksp, name: &str) -> Result<KspEcdhKeyPair, Error> {
+    pub fn new(ksp: KeyStorage, name: &str) -> Result<KspEcdhKeyPair, Error> {
         let prov = ncrypt::open_storage_provider(ksp)?;
         let key = ncrypt::create_persisted_ecdh_p256_key(&prov, Some(name))?;
         ncrypt::finalize_key(&key)?;
         Ok(KspEcdhKeyPair { prov, key })
     }
 
-    pub fn open(ksp: Ksp, name: &str) -> Result<KspEcdhKeyPair, Error> {
+    pub fn open(ksp: KeyStorage, name: &str) -> Result<KspEcdhKeyPair, Error> {
         let prov = ncrypt::open_storage_provider(ksp)?;
         let key = ncrypt::open_key(&prov, name)?;
         Ok(KspEcdhKeyPair { prov, key })

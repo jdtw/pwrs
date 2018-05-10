@@ -1,5 +1,7 @@
 #![cfg(windows)]
 
+extern crate winapi;
+
 extern crate serde;
 extern crate serde_json;
 
@@ -13,10 +15,11 @@ extern crate memsec;
 extern crate seckey;
 
 pub mod authenticator;
-pub mod crypto;
-pub mod entry;
+pub mod credentials;
+mod crypto;
+mod entry;
 pub mod error;
 pub mod prompt;
-pub mod utils;
+mod utils;
 pub mod vault;
-pub mod win32;
+mod win32;

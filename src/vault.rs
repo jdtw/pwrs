@@ -1,7 +1,7 @@
 use authenticator::Authenticator;
+use credentials::*;
 use entry::Entry;
 use error::*;
-use prompt::{Credentials, Password};
 use serde_json;
 
 use std::collections::hash_map;

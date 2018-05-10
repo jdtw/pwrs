@@ -1,6 +1,6 @@
 [package]
 name = "pwrs"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["John Wood <j@jdtw.us>"]
 license = "MIT"
 repository = "https://github.com/jdtw/pwrs"

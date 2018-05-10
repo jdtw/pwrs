@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use win32::winapi::shared::basetsd::ULONG_PTR;
-use win32::winapi::shared::bcrypt::*;
-use win32::winapi::shared::minwindef::ULONG;
-use win32::winapi::um::winnt::LPCWSTR;
+use winapi::shared::basetsd::ULONG_PTR;
+use winapi::shared::bcrypt::*;
+use winapi::shared::minwindef::ULONG;
+use winapi::um::winnt::LPCWSTR;
 
 type DWORD = ULONG;
 pub type SECURITY_STATUS = i32;
@@ -17,8 +17,6 @@ type NCRYPT_SECRET_HANDLE = ULONG_PTR;
 pub const MS_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Software Key Storage Provider";
 pub const MS_SMART_CARD_KEY_STORAGE_PROVIDER: &'static str =
     "Microsoft Smart Card Key Storage Provider";
-pub const MS_PLATFORM_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Platform Crypto Provider";
-pub const MS_NGC_KEY_STORAGE_PROVIDER: &'static str = "Microsoft Passport Key Storage Provider";
 
 #[link(name = "ncrypt")]
 extern "stdcall" {
