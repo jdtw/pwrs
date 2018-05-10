@@ -20,7 +20,7 @@ fn main() {
     let matches = App::new("PWRS")
         .version(crate_version!())
         .author(crate_authors!())
-        .about("Command line password manager")
+        .about("Command-line password manager")
         .arg(
             Arg::with_name("vault")
                 .help("Vault input file")

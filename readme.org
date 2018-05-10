@@ -4,9 +4,9 @@ with any smart card that supports ECDH on the P256 curve (such as
 the YubiKey 4).
 ** Usage
 #+BEGIN_EXAMPLE
-PWRS 0.1.0
+PWRS 0.2.0
 John Wood <j@jdtw.us>
-Command line password manager
+Command-line password manager
 
 USAGE:
     pwrs [OPTIONS] <SUBCOMMAND>
