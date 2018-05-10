@@ -1,11 +1,13 @@
-* PWRS
-[[https://ci.appveyor.com/api/projects/status/github/jdtw/pwrs?branch=master&retina=true]]
+# PWRS
 
-pwrs is a command-line password manager for Windows, that works
-with any smart card that supports ECDH on the P256 curve (such as
-the YubiKey 4).
-** Usage
-#+BEGIN_EXAMPLE
+[![Build status](https://ci.appveyor.com/api/projects/status/github/jdtw/pwrs?branch=master&retina=true)](https://ci.appveyor.com/project/jdtw/pwrs/)
+
+pwrs is a command-line password manager for Windows, that works with any
+smart card that supports ECDH on the P256 curve (such as the YubiKey 4).
+
+## Usage
+
+``` example
 PWRS 0.2.0
 John Wood <j@jdtw.us>
 Command-line password manager
@@ -27,4 +29,4 @@ SUBCOMMANDS:
     help    Prints this message or the help of the given subcommand(s)
     ls      List the entries in the vault
     new     Create a new vault
-#+END_EXAMPLE
+```
