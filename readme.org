@@ -1,4 +1,6 @@
 * PWRS
+[[https://ci.appveyor.com/api/projects/status/github/jdtw/pwrs?branch=master&retina=true]]
+
 pwrs is a command-line password manager for Windows, that works
 with any smart card that supports ECDH on the P256 curve (such as
 the YubiKey 4).
