@@ -1,6 +1,6 @@
 use error::*;
+use hex;
 use seckey::SecKey;
-use utils::to_hex;
 use win32;
 use win32::bcrypt;
 use win32::bcrypt::SymAlg;
@@ -54,7 +54,7 @@ impl PubKey {
             .hash(&self.x)?
             .hash(&self.y)?
             .finish_hash()?;
-        Ok(to_hex(&hash))
+        Ok(hex::encode(hash))
     }
 }
 
