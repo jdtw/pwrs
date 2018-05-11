@@ -1,3 +1,56 @@
+//! A vault contains two things:
+//! 1. An authenticator that knows how to encrypt/decrypt passwords.
+//! 2. A set of `site -> (username, password)` entries.
+//!
+//! The `Vault` structure has methods for managing the vault entries,
+//! as well as methods for serializing/deserializing to/from JSON (using `serde`).
+//!
+//! # Examples
+//!
+//! ```
+//! use pwrs::authenticator::Key;
+//! use pwrs::credentials::Credentials;
+//! use pwrs::vault::Vault;
+//! use std::io::Write;
+//!
+//! let authenticator = Key::Software(String::from("example"))
+//!     .into_authenticator()
+//!     .unwrap();
+//! let mut vault = Vault::new(authenticator);
+//! let _pk = vault.thumbprint().unwrap();
+//!
+//! // Insert and encrypt the password
+//! let creds = Credentials::new(
+//!     String::from("user"),
+//!     String::from("Pa$$w0rd!")
+//! );
+//! vault.insert(String::from("example.com"), creds).unwrap();
+//!
+//! // Retrieve and decrypt it
+//! {
+//!     let entry = vault.get("example.com").unwrap();
+//!     assert_eq!(entry.site(), "example.com");
+//!     assert_eq!(entry.username(), "user");
+//!     assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
+//! }
+//!
+//! // Serialize and deserialize to/from buffer
+//! let mut buffer = Vec::new();
+//! vault.to_writer(buffer.by_ref()).unwrap();
+//! let deserialized = Vault::from_reader(&buffer[..]).unwrap();
+//! assert_eq!(deserialized, vault);
+//!
+//! let entry = deserialized.get("example.com").unwrap();
+//! assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
+//!
+//! // Delete the persistent "example" software key.
+//! vault.delete().unwrap();
+//!
+//! // Note that the other copy of the vault, `deserialized`, will now
+//! // fail to perform any decryptions because the private key shared by
+//! // the two vaults is gone.
+//! assert!(entry.decrypt_password().is_err());
+//! ```
 use authenticator::Authenticator;
 use credentials::*;
 use entry::Entry;
@@ -64,19 +117,6 @@ impl<'a> Iterator for VaultIter<'a> {
 
 impl Vault {
     /// Create a new, empty vault.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use pwrs::vault::Vault;
-    /// use pwrs::authenticator::Key;
-    ///
-    /// let authenticator = Key::Software(String::from("example"))
-    ///     .into_authenticator()
-    ///     .unwrap();
-    /// let vault = Vault::new(authenticator);
-    /// vault.delete().unwrap();
-    /// ```
     pub fn new(authenticator: Authenticator) -> Vault {
         Vault {
             authenticator,
@@ -116,10 +156,12 @@ impl Vault {
         Ok(())
     }
 
+    /// Deserialize from a reader.
     pub fn from_reader<R: Read>(reader: R) -> Result<Vault, Error> {
         Ok(serde_json::from_reader(reader)?)
     }
 
+    /// Deserialize from a file.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Vault, Error> {
         let file = File::open(path.as_ref()).context(format!(
             "Open vault file '{}' failed",
