@@ -13,7 +13,7 @@ pub trait Authenticate {
 }
 
 /// A key that will be stored in a [CNG key storage provider][cng]
-/// 
+///
 /// [cng]: https://msdn.microsoft.com/en-us/library/windows/desktop/bb931355(v=vs.85).aspx
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Key {

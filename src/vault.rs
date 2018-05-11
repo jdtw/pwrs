@@ -38,7 +38,7 @@ impl<'a, 'b> EntryRef<'a, 'b> {
     }
 
     /// Uses the vault's [`Authenticator`] to decrypt the password.
-    /// 
+    ///
     /// [`Authenticator`]: ../authenticator/index.html
     pub fn decrypt_password(&self) -> Result<Password, Error> {
         Ok(self.entry.decrypt_with(self.site, self.authenticator)?)
@@ -64,13 +64,13 @@ impl<'a> Iterator for VaultIter<'a> {
 
 impl Vault {
     /// Create a new, empty vault.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use pwrs::vault::Vault;
     /// use pwrs::authenticator::Key;
-    /// 
+    ///
     /// let authenticator = Key::Software(String::from("example"))
     ///     .into_authenticator()
     ///     .unwrap();

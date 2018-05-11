@@ -177,3 +177,17 @@ impl KeyPair for KspEcdhKeyPair {
         Ok(ncrypt::derive_key(&secret, MASTER_SECRET_LABEL)?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_close_open_key() {
+        let key = KspEcdhKeyPair::new(KeyStorage::Software, "abcdefg").expect("Create key failed");
+        key.pk().expect("Get pk failed");
+        drop(key);
+        let key = KspEcdhKeyPair::open(KeyStorage::Software, "abcdefg").expect("Open failed");
+        key.delete().expect("Delete failed");
+    }
+}

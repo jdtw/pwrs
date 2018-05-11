@@ -63,7 +63,7 @@ pub fn create_persisted_ecdh_p256_key(
         let mut key = Handle::new();
         let name_bytes = key_name.map(|n| n.to_lpcwstr());
         let name_ptr = match name_bytes {
-            Some(bytes) => bytes.as_ptr(),
+            Some(ref bytes) => bytes.as_ptr(),
             None => null(),
         };
         let status = NCryptCreatePersistedKey(

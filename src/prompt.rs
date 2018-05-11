@@ -8,7 +8,7 @@ pub trait Prompt {
 
 /// A wrapper around [`CredUIPromptForWindowsCredentials`][credui] that will
 /// gather a username and password from the user.
-/// 
+///
 /// [credui]: https://msdn.microsoft.com/en-us/library/windows/desktop/aa375178(v=vs.85).aspx
 pub struct UIPrompt<'a> {
     caption: &'a str,
