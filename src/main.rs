@@ -8,12 +8,12 @@ use clipboard_win::Clipboard;
 extern crate clap;
 use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
 
-extern crate pwrs;
-use pwrs::authenticator::Key;
-use pwrs::credentials::*;
-use pwrs::error::*;
-use pwrs::prompt::*;
-use pwrs::vault::Vault;
+extern crate pwv;
+use pwv::authenticator::Key;
+use pwv::credentials::*;
+use pwv::error::*;
+use pwv::prompt::*;
+use pwv::vault::Vault;
 
 use std::fs;
 use std::io::Write;

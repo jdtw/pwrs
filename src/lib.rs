@@ -1,4 +1,4 @@
-//! `pwrs` is a Windows command-line password manager.
+//! `pwv` (*p*ass*w*ord *v*ault) is a Windows command-line password manager.
 //!
 //! Passwords are stored encrypted in a vault file, encrypted to the vault's public key.
 //! The private key can either be kept in a smart card that supports ECDH on the P256

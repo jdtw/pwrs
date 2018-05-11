@@ -8,9 +8,9 @@
 //! # Examples
 //!
 //! ```
-//! use pwrs::authenticator::Key;
-//! use pwrs::credentials::Credentials;
-//! use pwrs::vault::Vault;
+//! use pwv::authenticator::Key;
+//! use pwv::credentials::Credentials;
+//! use pwv::vault::Vault;
 //! use std::io::Write;
 //!
 //! let authenticator = Key::Software(String::from("example"))
