@@ -11,12 +11,15 @@ use std::io::prelude::*;
 use std::iter::Iterator;
 use std::path::Path;
 
+/// The password vault, containing `site -> (username, password)` entries.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vault {
     authenticator: Authenticator,
     entries: HashMap<String, Entry>,
 }
 
+/// A reference to a `site -> (username, password)` entry in
+/// the vault, along with an interface for decrypting the password.
 pub struct EntryRef<'a, 'b> {
     authenticator: &'a Authenticator,
     site: &'b str,
@@ -24,19 +27,25 @@ pub struct EntryRef<'a, 'b> {
 }
 
 impl<'a, 'b> EntryRef<'a, 'b> {
+    /// Retrieve the username associated with this entry
     pub fn username(&self) -> &str {
         self.entry.username()
     }
 
+    /// Retrieve the site associated with this entry
     pub fn site(&self) -> &str {
         self.site
     }
 
+    /// Uses the vault's [`Authenticator`] to decrypt the password.
+    /// 
+    /// [`Authenticator`]: ../authenticator/index.html
     pub fn decrypt_password(&self) -> Result<Password, Error> {
         Ok(self.entry.decrypt_with(self.site, self.authenticator)?)
     }
 }
 
+/// An itertor over all vault entries, in arbitrary order.
 pub struct VaultIter<'a> {
     authenticator: &'a Authenticator,
     entries: hash_map::Iter<'a, String, Entry>,
@@ -54,6 +63,20 @@ impl<'a> Iterator for VaultIter<'a> {
 }
 
 impl Vault {
+    /// Create a new, empty vault.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use pwrs::vault::Vault;
+    /// use pwrs::authenticator::Key;
+    /// 
+    /// let authenticator = Key::Software(String::from("example"))
+    ///     .into_authenticator()
+    ///     .unwrap();
+    /// let vault = Vault::new(authenticator);
+    /// vault.delete().unwrap();
+    /// ```
     pub fn new(authenticator: Authenticator) -> Vault {
         Vault {
             authenticator,
@@ -61,10 +84,19 @@ impl Vault {
         }
     }
 
+    /// A SHA1 hash of the vault's public key. This should be displayed
+    /// to the user after vault creation, and prior to encryption of a password.
+    /// Since we blindly encrypt to whatever public key we find in the vault,
+    /// and since there is no certificate associated with this key that we
+    /// can validate, it is important to have *some* protection against an
+    /// attacker placing their public key into the vault. Displaying the thumbprint
+    /// is an easy way of doing this (assuming, of course, the user remembers what
+    /// it should be).
     pub fn thumbprint(&self) -> Result<String, Error> {
         self.authenticator.pk().thumbprint()
     }
 
+    /// Get an iterator over the vault entries, in no particular order.
     pub fn iter(&self) -> VaultIter {
         VaultIter {
             authenticator: &self.authenticator,
@@ -72,10 +104,13 @@ impl Vault {
         }
     }
 
+    /// Delete the key associated with the vault's authenticator. This does *not*
+    /// delete the file from disk.
     pub fn delete(self) -> Result<(), Error> {
         self.authenticator.delete()
     }
 
+    /// Serialize to a writer.
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
         serde_json::to_writer_pretty(writer, &self)?;
         Ok(())
@@ -93,6 +128,7 @@ impl Vault {
         Vault::from_reader(file)
     }
 
+    /// Create a new vault file.
     pub fn write_new<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         let vault_file = OpenOptions::new()
             .write(true)
@@ -105,6 +141,7 @@ impl Vault {
         self.to_writer(vault_file)
     }
 
+    /// Update the contents of the vault file (open existing file and truncate).
     pub fn write_update<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         let vault_file = OpenOptions::new()
             .write(true)
@@ -117,12 +154,16 @@ impl Vault {
         self.to_writer(vault_file)
     }
 
+    /// Create a `site -> Credentials` entry in the vault. The password will
+    /// be encrypted to the vault's public key. And since this is a public key
+    /// operation, no authentication is required.
     pub fn insert(&mut self, site: String, creds: Credentials) -> Result<Option<Entry>, Error> {
         let (username, password) = creds.into_tuple();
         let entry = Entry::new(&self.authenticator, &site, username, password.str())?;
         Ok(self.entries.insert(site, entry))
     }
 
+    /// Retrieve an entry from the vault. This does not cause the password to be decrypted.
     pub fn get<'a, 'b>(&'a self, site: &'b str) -> Option<EntryRef<'a, 'b>> {
         self.entries.get(site).map(|entry| EntryRef {
             authenticator: &self.authenticator,
@@ -131,12 +172,9 @@ impl Vault {
         })
     }
 
+    /// Remove an entry from the vault.
     pub fn remove(&mut self, key: &str) -> Option<Entry> {
         self.entries.remove(key)
-    }
-
-    pub fn authenticator(&self) -> &Authenticator {
-        &self.authenticator
     }
 }
 

@@ -1,18 +1,30 @@
+//! Each vault contains an `Authenticator` that provides an abstraction over
+//! private key operations.
+
 use crypto::*;
 use error::Error;
 
+/// The `Authenticate` trait provides an abstraction for the ECDH
+/// private key operation.
 pub trait Authenticate {
-    // In: entry public key, Out: secret
+    /// Takes in a public key to perform key agreement with, and outputs
+    /// the result of that key agreement.
     fn authenticate(&self, pk: &PubKey) -> Result<AgreedSecret, Error>;
 }
 
+/// A key that will be stored in a [CNG key storage provider][cng]
+/// 
+/// [cng]: https://msdn.microsoft.com/en-us/library/windows/desktop/bb931355(v=vs.85).aspx
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Key {
+    /// A key that will be stored in the software KSP.
     Software(String),
+    /// A key that will be stored in the smart card KSP.
     SmartCard(String),
 }
 
 impl Key {
+    /// Consumes the `Key` and creates an `Authenticator` from it.
     pub fn into_authenticator(self) -> Result<Authenticator, Error> {
         let key = {
             let (ksp, key_name) = match &self {
@@ -53,6 +65,7 @@ enum AuthenticatorType {
     Ksp(Key),
 }
 
+/// Manages the vault's ECDH key pair.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Authenticator {
     pk: PubKey,
@@ -60,12 +73,12 @@ pub struct Authenticator {
 }
 
 impl Authenticator {
+    /// The vault's public key.
     pub fn pk(&self) -> &PubKey {
         &self.pk
     }
 
-    // Authenticate takes in a public key and returns the result of ECDH
-    // key agreement with that key, using the authenticator's private key.
+    /// Return an `Authenticate` trait object.
     pub fn authenticator(&self) -> &Authenticate {
         match self.authenticator {
             #[cfg(test)]
@@ -74,6 +87,7 @@ impl Authenticator {
         }
     }
 
+    /// Delete the persisted key stored by the `Authenticator`.
     pub fn delete(self) -> Result<(), Error> {
         match self.authenticator {
             #[cfg(test)]

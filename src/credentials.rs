@@ -1,6 +1,7 @@
 use memsec;
 
 #[derive(Debug, PartialEq)]
+/// A container for plaintext passwords that will be securely zeroed on `drop`.
 pub struct Password {
     password: String,
 }
@@ -14,6 +15,8 @@ impl Password {
     }
 }
 
+/// The plaintext `Password` is securely zeroed out when dropped, so it does
+/// not remain in memory longer than needed.
 impl Drop for Password {
     fn drop(&mut self) {
         unsafe {
