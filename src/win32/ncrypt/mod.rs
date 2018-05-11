@@ -6,7 +6,6 @@ use error::*;
 use seckey::SecKey;
 use std::mem;
 use std::ptr::{null, null_mut};
-use std::string::ToString;
 use win32::bcrypt::BCryptEcdhP256KeyBlob;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 use winapi::ctypes::c_void;
@@ -62,14 +61,13 @@ pub fn create_persisted_ecdh_p256_key(
         let algo = BCRYPT_ECDH_P256_ALGORITHM;
         let mut key = Handle::new();
         let name_bytes = key_name.map(|n| n.to_lpcwstr());
-        let name_ptr = match name_bytes {
-            Some(ref bytes) => bytes.as_ptr(),
-            None => null(),
-        };
+        let name_ptr = name_bytes
+            .as_ref()
+            .map_or_else(|| null(), |bytes| bytes.as_ptr());
         let status = NCryptCreatePersistedKey(
             provider.get(),
             key.put(),
-            algo.to_string().to_lpcwstr().as_ptr(),
+            algo.to_lpcwstr().as_ptr(),
             name_ptr,
             0,
             0,
