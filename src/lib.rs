@@ -21,8 +21,6 @@
 //! [`credentials`]: credentials/index.html
 //! [`prompt`]: prompt/index.html
 #![cfg(windows)]
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 #[macro_use]
 extern crate failure;
