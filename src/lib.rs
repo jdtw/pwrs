@@ -10,6 +10,7 @@
 //! * AES256 CBC
 //! * HMAC SHA256
 //! * NIST SP800 108 CTR HMAC KDF
+//! 
 //! See the [`crypto`] module for more details.
 //!
 //! [cng]: https://msdn.microsoft.com/en-us/library/windows/desktop/bb931355(v=vs.85).aspx
