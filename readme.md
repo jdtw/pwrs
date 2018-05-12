@@ -13,7 +13,7 @@ Documentation of `pwv` internals can be found on [docs.rs](https://docs.rs/pwv/*
 ## Usage
 
 ``` example
-PWRS 0.2.0
+PWV 0.2.1
 John Wood <j@jdtw.us>
 Command-line password manager
 

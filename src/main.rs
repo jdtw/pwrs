@@ -16,7 +16,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-    let matches = App::new("PWRS")
+    let matches = App::new("PWV")
         .version(crate_version!())
         .author(crate_authors!())
         .about("Command-line password manager")
