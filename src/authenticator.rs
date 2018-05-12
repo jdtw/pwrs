@@ -1,6 +1,5 @@
 //! Each vault contains an `Authenticator` that provides an abstraction over
 //! private key operations.
-
 use crypto::*;
 use error::Error;
 
@@ -54,7 +53,7 @@ impl Authenticate for Key {
             Key::Software(key_name) => (KeyStorage::Software, key_name),
             Key::SmartCard(key_name) => (KeyStorage::SmartCard, key_name),
         };
-        KspEcdhKeyPair::open(ksp, key_name)?.agree_and_derive(pk)
+        KspEcdhKeyPair::open(ksp, key_name)?.agree(pk)
     }
 }
 
@@ -122,7 +121,7 @@ pub mod test {
             let sk = EcdhKeyPair::import(&PrivKey {
                 d: SecKey::new(self.0).unwrap(),
             })?;
-            sk.agree_and_derive(pk)
+            sk.agree(pk)
         }
     }
 }

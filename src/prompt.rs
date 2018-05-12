@@ -1,8 +1,15 @@
+//! Retrieves credentials from the user.
+//!
+//! Currently, there are two ways to do this, via UI, or via a tuple of `(username, password)`.
+//! In the future, I would like to also add a command-line prompt for credentials.
+
 use credentials::*;
 use error::*;
 use win32::credui;
 
+/// Abstraction over credential gathering from the user
 pub trait Prompt {
+    // Gather a username and password from the user
     fn prompt(&self) -> Result<Credentials, PwrsError>;
 }
 
@@ -22,6 +29,19 @@ impl UIPrompt {
 }
 
 impl Prompt for UIPrompt {
+    /// Show the Windows credential collection dialog to collect the username and password.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pwv::prompt::{Prompt, UIPrompt};
+    ///
+    /// let caption = String::from("Enter credentials for example.com");
+    /// let message = String::from("And be sure nobody is looking over your shoulder!");
+    /// let ui_prompt = UIPrompt::new(caption, message);
+    /// // Uncomment the line below to show UI.
+    /// // let creds = ui_prompt.prompt().unwrap();
+    /// ```
     fn prompt(&self) -> Result<Credentials, PwrsError> {
         let auth_buffer = credui::prompt_for_windows_credentials(&self.caption, &self.message)?;
         let credentials = credui::unpack_authentication_buffer(auth_buffer)?;
@@ -30,6 +50,18 @@ impl Prompt for UIPrompt {
 }
 
 impl<'a> Prompt for (&'a str, &'a str) {
+    /// Return credentials from the `(username, password)` tuple. Note that this is
+    /// less secure than UI credential collection because we can not zero out the password
+    /// since we don't have ownership of it. This `impl` is mostly used for testing, or
+    /// for collecting a password from the command-line.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pwv::prompt::Prompt;
+    ///
+    /// let _credentials = ("username", "password").prompt().unwrap();
+    /// ```
     fn prompt(&self) -> Result<Credentials, PwrsError> {
         Ok(Credentials::new(String::from(self.0), String::from(self.1)))
     }

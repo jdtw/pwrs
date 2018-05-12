@@ -19,9 +19,7 @@ impl Entry {
     ) -> Result<Entry, Error> {
         let (username, password) = creds.into();
         let ephemeral = EcdhKeyPair::new()?;
-        let (k, s) = ephemeral
-            .agree_and_derive(authenticator.pk())?
-            .derive_keys()?;
+        let (k, s) = ephemeral.agree(authenticator.pk())?.derive_keys()?;
         let encrypted_password = k.encrypt(password.str())?;
         let mac = s.mac(site, &username, &encrypted_password)?;
 

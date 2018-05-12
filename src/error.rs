@@ -1,3 +1,4 @@
+//! `pwv`-specific errors
 pub use failure::{Error, Fail, ResultExt};
 
 #[derive(Debug, Fail)]

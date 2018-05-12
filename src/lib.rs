@@ -5,20 +5,65 @@
 //! curve (such as the YubiKey 4), or in software. Key access happens through the
 //! Microsoft [CNG APIs][cng].
 //!
-//! # Layout
-//!
-//! * The [`vault`] module deals with managing the `site -> (username, password)` entries
-//!   and serialization to/from JSON.
-//! * Each vault has an [`authenticator`] that manages storage of the vault's ECDH key pair,
-//!   and provides an [`authenticate`] abstraction for decrypting a passwords.
-//! * Usernames and passwords are handled by the [`credentials`] module.
-//! * The [`prompt`] module gathers credentials from the user.
+//! The ciphersuite used in the vault:
+//! * ECDH on P256 curve
+//! * AES256 CBC
+//! * HMAC SHA256
+//! * NIST SP800 108 CTR HMAC KDF
+//! See the [`crypto`] module for more details.
 //!
 //! [cng]: https://msdn.microsoft.com/en-us/library/windows/desktop/bb931355(v=vs.85).aspx
-//! [`vault`]: vault/index.html
-//! [`authenticator`]: authenticator/index.html
-//! [`authenticate`]: authenticator/trait.Authenticate.html
-//! [`prompt`]: prompt/index.html
+//! [`crypto`]: crypto/index.html
+//!
+//! # Examples
+//!
+//! ```
+//! use pwv::authenticator::Key;
+//! use pwv::prompt::Prompt;
+//! use pwv::vault::Vault;
+//! use std::io::Write;
+//!
+//! let authenticator = Key::Software(String::from("example"))
+//!     .into_authenticator()
+//!     .unwrap();
+//! let mut vault = Vault::new(authenticator);
+//!
+//! // The thumbprint (hash of the vault's public key) should be shown
+//! // to the user after vault creation (where they should be told to
+//! // remember it), and then during each subsequent vault insertion (where
+//! // they should be told to check and see if it matches the one they
+//! // were shown during creation).
+//! let _pk = vault.thumbprint().unwrap();
+//!
+//! // Insert and encrypt the password
+//! let creds = ("user", "Pa$$w0rd!");
+//! vault.insert(String::from("example.com"), &creds).unwrap();
+//!
+//! // Retrieve and decrypt it
+//! {
+//!     let entry = vault.get("example.com").unwrap();
+//!     assert_eq!(entry.site(), "example.com");
+//!     assert_eq!(entry.username(), "user");
+//!     assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
+//! }
+//!
+//! // Serialize and deserialize to/from buffer
+//! let mut buffer = Vec::new();
+//! vault.to_writer(buffer.by_ref()).unwrap();
+//! let deserialized = Vault::from_reader(&buffer[..]).unwrap();
+//! assert_eq!(deserialized, vault);
+//!
+//! let entry = deserialized.get("example.com").unwrap();
+//! assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
+//!
+//! // Delete the persistent "example" software key.
+//! vault.delete().unwrap();
+//!
+//! // Note that the other copy of the vault, `deserialized`, will now
+//! // fail to perform any decryptions because the private key shared by
+//! // the two vaults is gone.
+//! assert!(entry.decrypt_password().is_err());
+//! ```
 #![cfg(windows)]
 
 #[macro_use]
@@ -33,8 +78,8 @@ extern crate serde_json;
 extern crate winapi;
 
 pub mod authenticator;
-mod credentials;
-mod crypto;
+pub mod credentials;
+pub mod crypto;
 mod entry;
 pub mod error;
 pub mod prompt;

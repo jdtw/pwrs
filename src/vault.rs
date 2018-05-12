@@ -7,49 +7,6 @@
 //! The `Vault` structure has methods for managing the vault entries,
 //! as well as methods for serializing/deserializing to/from JSON (using `serde`).
 //!
-//! # Examples
-//!
-//! ```
-//! use pwv::authenticator::Key;
-//! use pwv::prompt::Prompt;
-//! use pwv::vault::Vault;
-//! use std::io::Write;
-//!
-//! let authenticator = Key::Software(String::from("example"))
-//!     .into_authenticator()
-//!     .unwrap();
-//! let mut vault = Vault::new(authenticator);
-//! let _pk = vault.thumbprint().unwrap();
-//!
-//! // Insert and encrypt the password
-//! let creds = ("user", "Pa$$w0rd!");
-//! vault.insert(String::from("example.com"), &creds).unwrap();
-//!
-//! // Retrieve and decrypt it
-//! {
-//!     let entry = vault.get("example.com").unwrap();
-//!     assert_eq!(entry.site(), "example.com");
-//!     assert_eq!(entry.username(), "user");
-//!     assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
-//! }
-//!
-//! // Serialize and deserialize to/from buffer
-//! let mut buffer = Vec::new();
-//! vault.to_writer(buffer.by_ref()).unwrap();
-//! let deserialized = Vault::from_reader(&buffer[..]).unwrap();
-//! assert_eq!(deserialized, vault);
-//!
-//! let entry = deserialized.get("example.com").unwrap();
-//! assert_eq!(entry.decrypt_password().unwrap().str(), "Pa$$w0rd!");
-//!
-//! // Delete the persistent "example" software key.
-//! vault.delete().unwrap();
-//!
-//! // Note that the other copy of the vault, `deserialized`, will now
-//! // fail to perform any decryptions because the private key shared by
-//! // the two vaults is gone.
-//! assert!(entry.decrypt_password().is_err());
-//! ```
 use authenticator::Authenticator;
 use credentials::*;
 use entry::Entry;
@@ -196,7 +153,8 @@ impl Vault {
         self.to_writer(vault_file)
     }
 
-    /// Create a `site -> Credentials` entry in the vault. The password will
+    /// Create a `site -> (username, password)` entry in the vault. Credentials are collected
+    /// by calling the `prompt` method on the `Prompt` trait object. The password will
     /// be encrypted to the vault's public key. And since this is a public key
     /// operation, no authentication is required.
     pub fn insert(&mut self, site: String, prompt: &Prompt) -> Result<Option<Entry>, Error> {
