@@ -131,6 +131,7 @@ pub mod test {
 mod tests {
     use super::*;
     use entry::Entry;
+    use prompt::Prompt;
 
     #[test]
     fn test_test_protect_unprotect() {
@@ -138,8 +139,7 @@ mod tests {
         let entry = Entry::new(
             &authenticator,
             "example.com",
-            String::from("john"),
-            "password🔐",
+            ("john", "password🔐").prompt().unwrap(),
         ).unwrap();
         let decrypted = entry.decrypt_with("example.com", &authenticator).unwrap();
         assert_eq!("password🔐", decrypted.str());
@@ -158,8 +158,7 @@ mod tests {
         let entry = Entry::new(
             &authenticator,
             "facebook.com",
-            String::from("john"),
-            "password",
+            ("john", "password").prompt().unwrap(),
         ).unwrap();
         let decrypted = entry.decrypt_with("facebook.com", &authenticator).unwrap();
         authenticator.delete().unwrap();

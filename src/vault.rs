@@ -1,3 +1,5 @@
+//! Storage and management of usernames and password.
+//!
 //! A vault contains two things:
 //! 1. An authenticator that knows how to encrypt/decrypt passwords.
 //! 2. A set of `site -> (username, password)` entries.
@@ -9,7 +11,7 @@
 //!
 //! ```
 //! use pwv::authenticator::Key;
-//! use pwv::credentials::Credentials;
+//! use pwv::prompt::Prompt;
 //! use pwv::vault::Vault;
 //! use std::io::Write;
 //!
@@ -20,11 +22,8 @@
 //! let _pk = vault.thumbprint().unwrap();
 //!
 //! // Insert and encrypt the password
-//! let creds = Credentials::new(
-//!     String::from("user"),
-//!     String::from("Pa$$w0rd!")
-//! );
-//! vault.insert(String::from("example.com"), creds).unwrap();
+//! let creds = ("user", "Pa$$w0rd!");
+//! vault.insert(String::from("example.com"), &creds).unwrap();
 //!
 //! // Retrieve and decrypt it
 //! {
@@ -55,6 +54,7 @@ use authenticator::Authenticator;
 use credentials::*;
 use entry::Entry;
 use error::*;
+use prompt::*;
 use serde_json;
 
 use std::collections::hash_map;
@@ -199,9 +199,9 @@ impl Vault {
     /// Create a `site -> Credentials` entry in the vault. The password will
     /// be encrypted to the vault's public key. And since this is a public key
     /// operation, no authentication is required.
-    pub fn insert(&mut self, site: String, creds: Credentials) -> Result<Option<Entry>, Error> {
-        let (username, password) = creds.into_tuple();
-        let entry = Entry::new(&self.authenticator, &site, username, password.str())?;
+    pub fn insert(&mut self, site: String, prompt: &Prompt) -> Result<Option<Entry>, Error> {
+        let creds = prompt.prompt().context("Prompt for credentials failed")?;
+        let entry = Entry::new(&self.authenticator, &site, creds)?;
         Ok(self.entries.insert(site, entry))
     }
 
@@ -230,10 +230,7 @@ mod tests {
         let authenticator = test::Test::new().unwrap();
         let mut vault = Vault::new(authenticator);
         vault
-            .insert(
-                String::from("key"),
-                Credentials::new(String::from("username"), String::from("password")),
-            )
+            .insert(String::from("key"), &("username", "password"))
             .unwrap();
 
         {
@@ -253,10 +250,7 @@ mod tests {
         }
         // Replace the entry
         vault
-            .insert(
-                String::from("key"),
-                Credentials::new(String::from("username2"), String::from("password2")),
-            )
+            .insert(String::from("key"), &("username2", "password2"))
             .unwrap();
         {
             let entry = vault.get("key").unwrap();
@@ -276,16 +270,10 @@ mod tests {
         let authenticator = test::Test::new().unwrap();
         let mut vault = Vault::new(authenticator);
         vault
-            .insert(
-                String::from("foo.com"),
-                Credentials::new(String::from("foo"), String::from("bar")),
-            )
+            .insert(String::from("foo.com"), &("foo", "bar"))
             .unwrap();
         vault
-            .insert(
-                String::from("example.com"),
-                Credentials::new(String::from("user"), String::from("pass")),
-            )
+            .insert(String::from("example.com"), &("user", "pass"))
             .unwrap();
 
         let mut buffer = Vec::new();
@@ -294,8 +282,7 @@ mod tests {
         assert_eq!(deserialized, vault);
 
         let entry = vault.get("foo.com").unwrap();
-        let username = entry.username();
-        assert_eq!(username, "foo");
+        assert_eq!(entry.username(), "foo");
         let password = entry.decrypt_password().unwrap();
         assert_eq!(password.str(), "bar");
     }

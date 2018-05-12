@@ -1,4 +1,4 @@
-//! `pwv` (*p*ass*w*ord *v*ault) is a Windows command-line password manager.
+//! `pwv` (**p**ass**w**ord **v**ault) is a Windows command-line password manager.
 //!
 //! Passwords are stored encrypted in a vault file, encrypted to the vault's public key.
 //! The private key can either be kept in a smart card that supports ECDH on the P256
@@ -18,7 +18,6 @@
 //! [`vault`]: vault/index.html
 //! [`authenticator`]: authenticator/index.html
 //! [`authenticate`]: authenticator/trait.Authenticate.html
-//! [`credentials`]: credentials/index.html
 //! [`prompt`]: prompt/index.html
 #![cfg(windows)]
 
@@ -34,7 +33,7 @@ extern crate serde_json;
 extern crate winapi;
 
 pub mod authenticator;
-pub mod credentials;
+mod credentials;
 mod crypto;
 mod entry;
 pub mod error;

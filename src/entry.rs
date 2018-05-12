@@ -1,5 +1,5 @@
 use authenticator::Authenticator;
-use credentials::Password;
+use credentials::{Credentials, Password};
 use crypto::*;
 use error::{Error, PwrsError};
 
@@ -15,14 +15,14 @@ impl Entry {
     pub fn new(
         authenticator: &Authenticator,
         site: &str,
-        username: String,
-        password: &str,
+        creds: Credentials,
     ) -> Result<Entry, Error> {
+        let (username, password) = creds.into();
         let ephemeral = EcdhKeyPair::new()?;
         let (k, s) = ephemeral
             .agree_and_derive(authenticator.pk())?
             .derive_keys()?;
-        let encrypted_password = k.encrypt(password)?;
+        let encrypted_password = k.encrypt(password.str())?;
         let mac = s.mac(site, &username, &encrypted_password)?;
 
         Ok(Entry {

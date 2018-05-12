@@ -1,3 +1,4 @@
+//! Structures for passing around usernames and passwords
 use memsec;
 
 #[derive(Debug, PartialEq)]
@@ -10,6 +11,10 @@ impl Password {
     pub fn new(password: String) -> Self {
         Password { password }
     }
+    /// Return a reference to the plaintext pasword. Callers should be careful
+    /// of copying the password out of the `Password` structure, as any plain
+    /// `String`s will potentially leave the password in memory after the password
+    /// has been `drop`ped.
     pub fn str(&self) -> &str {
         &self.password
     }
@@ -27,9 +32,23 @@ impl Drop for Password {
 }
 
 #[derive(Debug, PartialEq)]
+/// A wrapper around a username and password. The password is securely
+/// zeroed on `drop`.
 pub struct Credentials {
     username: String,
     password: Password,
+}
+
+impl From<(String, String)> for Credentials {
+    fn from(tuple: (String, String)) -> Self {
+        Credentials::new(tuple.0, tuple.1)
+    }
+}
+
+impl From<Credentials> for (String, Password) {
+    fn from(creds: Credentials) -> Self {
+        (creds.username, creds.password)
+    }
 }
 
 impl Credentials {
@@ -44,8 +63,5 @@ impl Credentials {
     }
     pub fn password(&self) -> &str {
         self.password.str()
-    }
-    pub fn into_tuple(self) -> (String, Password) {
-        (self.username, self.password)
     }
 }

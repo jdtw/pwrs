@@ -7,7 +7,6 @@ use clap::{App, AppSettings, Arg, ArgGroup, ArgMatches, SubCommand};
 
 extern crate pwv;
 use pwv::authenticator::Key;
-use pwv::credentials::*;
 use pwv::error::*;
 use pwv::prompt::*;
 use pwv::vault::Vault;
@@ -146,24 +145,18 @@ fn add(vault_path: PathBuf, matches: &ArgMatches) -> Result<(), Error> {
     let mut vault = Vault::from_path(vault_path.as_path())?;
     let thumbprint = vault.thumbprint()?;
     let site = String::from(matches.value_of("SITE").unwrap());
-    let creds = if matches.is_present("user") {
-        Credentials::new(
-            String::from(matches.value_of("user").unwrap()),
-            // Note that we're copying the password here, so the copy
-            // still owned by `matches` may remain in memory, which is
-            // less than ideal (if it wasn't obvious enough that passing
-            // in a password on the command line isn't very secure...).
-            String::from(matches.value_of("password").unwrap()),
-        )
+    let prompt: Box<Prompt> = if matches.is_present("user") {
+        Box::new((
+            matches.value_of("user").unwrap(),
+            matches.value_of("password").unwrap(),
+        ))
     } else {
         let caption = format!("Enter credentials for {}", site);
         let message = format!("Public key thumbprint: {}", thumbprint);
-        UIPrompt::new(&caption, &message)
-            .prompt()
-            .context(format!("Prompt '{}' failed", caption))?
+        Box::new(UIPrompt::new(caption, message))
     };
     vault
-        .insert(site, creds)
+        .insert(site, &*prompt)
         .context("Insert vault entry failed")?;
     vault.write_update(vault_path)?;
     println!(
