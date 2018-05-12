@@ -2,9 +2,9 @@
 
 [![Build status](https://ci.appveyor.com/api/projects/status/github/jdtw/pwrs?branch=master&retina=true&svg=true)](https://ci.appveyor.com/project/jdtw/pwrs/)
 [![crates.io](https://img.shields.io/crates/v/pwv.svg)](https://crates.io/crates/pwv)
-[![docks.rs](https://docs.rs/pwv/badge.svg)](https://docs.rs/pwv/*/x86_64-pc-windows-msvc/pwv/)
+[![docs.rs](https://docs.rs/pwv/badge.svg)](https://docs.rs/pwv/*/x86_64-pc-windows-msvc/pwv/)
 
-`pwv` (**p**ass**w**word **v**ault) is a command-line password manager for Windows, that works with any
+`pwv` (**p**ass**w**ord **v**ault) is a command-line password manager for Windows, that works with any
 smart card that supports ECDH on the P256 curve (such as the YubiKey 4).
 
 ## Documentation
