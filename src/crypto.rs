@@ -185,14 +185,17 @@ impl MacSecret {
 /// assert_eq!(new_pk, opened_pk);
 /// ```
 pub struct KspEcdhKeyPair {
-    prov: win32::Handle<ncrypt::Object>,
-    key: win32::Handle<ncrypt::Object>,
+    prov: ncrypt::Provider,
+    key: ncrypt::Key,
 }
 
 impl KspEcdhKeyPair {
-    /// Create a new persisted key
+    /// Create a new persisted key, overwriting it if it exists
     pub fn new(ksp: KeyStorage, name: &str) -> Result<KspEcdhKeyPair, Error> {
         let prov = ncrypt::open_storage_provider(ksp)?;
+        if let Ok(h) = ncrypt::open_key(&prov, name) {
+            ncrypt::delete_key(h)?;
+        }
         let key = ncrypt::create_persisted_ecdh_p256_key(&prov, Some(name))?;
         ncrypt::finalize_key(&key)?;
         Ok(KspEcdhKeyPair { prov, key })

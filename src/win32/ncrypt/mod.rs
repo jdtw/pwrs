@@ -10,12 +10,13 @@ use win32::bcrypt::BCryptEcdhP256KeyBlob;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 use winapi::ctypes::c_void;
 use winapi::shared::bcrypt::*;
+use winapi::um::wincrypt::AT_KEYEXCHANGE;
 
 const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010_006e;
 const NTE_EXISTS: u32 = 0x8009_000f;
 const NTE_BAD_KEYSET: u32 = 0x8009_0016;
 
-pub struct Object;
+struct Object;
 impl CloseHandle for Object {
     fn close(handle: &usize) {
         unsafe {
@@ -24,7 +25,20 @@ impl CloseHandle for Object {
     }
 }
 
-pub fn open_storage_provider(ksp: KeyStorage) -> Result<Handle<Object>, PwrsError> {
+pub struct Provider {
+    storage: KeyStorage,
+    handle: Handle<Object>,
+}
+
+pub struct Key {
+    handle: Handle<Object>,
+}
+
+pub struct Secret {
+    handle: Handle<Object>,
+}
+
+pub fn open_storage_provider(ksp: KeyStorage) -> Result<Provider, PwrsError> {
     unsafe {
         let ksp_name = match ksp {
             KeyStorage::Software => MS_KEY_STORAGE_PROVIDER,
@@ -35,28 +49,46 @@ pub fn open_storage_provider(ksp: KeyStorage) -> Result<Handle<Object>, PwrsErro
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptOpenStorageProvider", status));
         }
-        Ok(prov)
+        Ok(Provider {
+            storage: ksp,
+            handle: prov,
+        })
     }
 }
 
-pub fn open_key(prov: &Handle<Object>, key_name: &str) -> Result<Handle<Object>, PwrsError> {
+pub fn open_key(prov: &Provider, key_name: &str) -> Result<Key, PwrsError> {
     unsafe {
         let mut key = Handle::new();
-        let status = NCryptOpenKey(prov.get(), key.put(), key_name.to_lpcwstr().as_ptr(), 0, 0);
+        let key_spec = match prov.storage {
+            // I have no idea why this is needed but if I do not do it sometimes the
+            // YubiKey can't open the vault key. My best guess is that there's a bug
+            // in the YubiKey minidriver that makes this additional hint required. Of
+            // course, the other KSPs don't support this, and so I must scope this to
+            // just the smart card KSP.
+            KeyStorage::SmartCard => AT_KEYEXCHANGE,
+            _ => 0,
+        };
+        let status = NCryptOpenKey(
+            prov.handle.get(),
+            key.put(),
+            key_name.to_lpcwstr().as_ptr(),
+            key_spec,
+            0,
+        );
         if status == NTE_BAD_KEYSET as i32 {
             return Err(PwrsError::KeyNotFound(String::from(key_name)));
         }
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptOpenKey", status));
         }
-        Ok(key)
+        Ok(Key { handle: key })
     }
 }
 
 pub fn create_persisted_ecdh_p256_key(
-    provider: &Handle<Object>,
+    provider: &Provider,
     key_name: Option<&str>,
-) -> Result<Handle<Object>, PwrsError> {
+) -> Result<Key, PwrsError> {
     unsafe {
         let algo = BCRYPT_ECDH_P256_ALGORITHM;
         let mut key = Handle::new();
@@ -65,7 +97,7 @@ pub fn create_persisted_ecdh_p256_key(
             .as_ref()
             .map_or_else(|| null(), |bytes| bytes.as_ptr());
         let status = NCryptCreatePersistedKey(
-            provider.get(),
+            provider.handle.get(),
             key.put(),
             algo.to_lpcwstr().as_ptr(),
             name_ptr,
@@ -78,13 +110,13 @@ pub fn create_persisted_ecdh_p256_key(
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptCreatePersistedKey", status));
         }
-        Ok(key)
+        Ok(Key { handle: key })
     }
 }
 
-pub fn finalize_key(key: &Handle<Object>) -> Result<(), PwrsError> {
+pub fn finalize_key(key: &Key) -> Result<(), PwrsError> {
     unsafe {
-        let status = NCryptFinalizeKey(key.get(), 0);
+        let status = NCryptFinalizeKey(key.handle.get(), 0);
         if status == SCARD_W_CANCELLED_BY_USER as i32 {
             return Err(PwrsError::UserCancelled("NCryptFinalizeKey"));
         }
@@ -95,9 +127,9 @@ pub fn finalize_key(key: &Handle<Object>) -> Result<(), PwrsError> {
     }
 }
 
-pub fn delete_key(mut key: Handle<Object>) -> Result<(), PwrsError> {
+pub fn delete_key(mut key: Key) -> Result<(), PwrsError> {
     unsafe {
-        let status = NCryptDeleteKey(key.release(), 0);
+        let status = NCryptDeleteKey(key.handle.release(), 0);
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptDeleteKey", status));
         }
@@ -105,16 +137,13 @@ pub fn delete_key(mut key: Handle<Object>) -> Result<(), PwrsError> {
     }
 }
 
-pub fn import_ecdh_p256_pub_key(
-    prov: &Handle<Object>,
-    pub_key: &PubKey,
-) -> Result<Handle<Object>, PwrsError> {
+pub fn import_ecdh_p256_pub_key(prov: &Provider, pub_key: &PubKey) -> Result<Key, PwrsError> {
     unsafe {
         let key_struct = BCryptEcdhP256KeyBlob::from_pub_key(pub_key);
         let blob = BCRYPT_ECCPUBLIC_BLOB;
         let mut key = Handle::new();
         let status = NCryptImportKey(
-            prov.get(),
+            prov.handle.get(),
             0,
             blob.to_lpcwstr().as_ptr(),
             null_mut(),
@@ -126,17 +155,17 @@ pub fn import_ecdh_p256_pub_key(
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptImportKey", status));
         }
-        Ok(key)
+        Ok(Key { handle: key })
     }
 }
 
-pub fn export_ecdh_p256_pub_key(key: &Handle<Object>) -> Result<PubKey, PwrsError> {
+pub fn export_ecdh_p256_pub_key(key: &Key) -> Result<PubKey, PwrsError> {
     unsafe {
         let mut key_struct = BCryptEcdhP256KeyBlob::new();
         let blob = BCRYPT_ECCPUBLIC_BLOB;
         let mut byte_count: u32 = 0;
         let status = NCryptExportKey(
-            key.get(),
+            key.handle.get(),
             0,
             blob.to_lpcwstr().as_ptr(),
             null_mut(),
@@ -156,21 +185,19 @@ pub fn export_ecdh_p256_pub_key(key: &Handle<Object>) -> Result<PubKey, PwrsErro
     }
 }
 
-pub fn secret_agreement(
-    priv_key: &Handle<Object>,
-    pub_key: &Handle<Object>,
-) -> Result<Handle<Object>, PwrsError> {
+pub fn secret_agreement(priv_key: &Key, pub_key: &Key) -> Result<Secret, PwrsError> {
     unsafe {
         let mut secret = Handle::new();
-        let status = NCryptSecretAgreement(priv_key.get(), pub_key.get(), secret.put(), 0);
+        let status =
+            NCryptSecretAgreement(priv_key.handle.get(), pub_key.handle.get(), secret.put(), 0);
         if status != 0 {
             return Err(PwrsError::Win32Error("NCryptSecretAgreement", status));
         }
-        Ok(secret)
+        Ok(Secret { handle: secret })
     }
 }
 
-pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<AgreedSecret, PwrsError> {
+pub fn derive_key(secret: &Secret, label: &str) -> Result<AgreedSecret, PwrsError> {
     unsafe {
         let mut sha2 = BCRYPT_SHA256_ALGORITHM.to_lpcwstr();
         let mut label = label.to_lpcwstr();
@@ -196,7 +223,7 @@ pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<AgreedSecret, 
         };
         let mut byte_count: u32 = 0;
         let status = NCryptDeriveKey(
-            secret.get(),
+            secret.handle.get(),
             BCRYPT_KDF_HMAC.to_lpcwstr().as_ptr(),
             &mut parameters,
             &mut *output.s.write() as *mut [u8; SHA2_DIGEST_SIZE] as *mut u8,
@@ -215,9 +242,16 @@ pub fn derive_key(secret: &Handle<Object>, label: &str) -> Result<AgreedSecret, 
 mod tests {
     use super::*;
 
+    fn delete_if_exists(prov: &Provider, key_name: &str) {
+        if let Ok(k) = open_key(prov, key_name) {
+            delete_key(k).unwrap();
+        }
+    }
+
     #[test]
     fn test_create_delete_persisted_sw_key() {
         let prov = open_storage_provider(KeyStorage::Software).unwrap();
+        delete_if_exists(&prov, "test-key-name");
         let key = create_persisted_ecdh_p256_key(&prov, Some("test-key-name")).unwrap();
         finalize_key(&key).unwrap();
         delete_key(key).unwrap();
@@ -226,6 +260,7 @@ mod tests {
     #[test]
     fn test_open_key() {
         let prov = open_storage_provider(KeyStorage::Software).unwrap();
+        delete_if_exists(&prov, "test-key-name-2");
         {
             let key = create_persisted_ecdh_p256_key(&prov, Some("test-key-name-2")).unwrap();
             finalize_key(&key).unwrap();
