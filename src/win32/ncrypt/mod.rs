@@ -10,11 +10,11 @@ use win32::bcrypt::BCryptEcdhP256KeyBlob;
 use win32::{CloseHandle, Handle, ToLpcwstr};
 use winapi::ctypes::c_void;
 use winapi::shared::bcrypt::*;
-use winapi::um::wincrypt::AT_KEYEXCHANGE;
 
 const SCARD_W_CANCELLED_BY_USER: u32 = 0x8010_006e;
 const NTE_EXISTS: u32 = 0x8009_000f;
 const NTE_BAD_KEYSET: u32 = 0x8009_0016;
+const AT_ECDHE_P256: u32 = 6;
 
 struct Object;
 impl CloseHandle for Object {
@@ -65,7 +65,7 @@ pub fn open_key(prov: &Provider, key_name: &str) -> Result<Key, PwrsError> {
             // in the YubiKey minidriver that makes this additional hint required. Of
             // course, the other KSPs don't support this, and so I must scope this to
             // just the smart card KSP.
-            KeyStorage::SmartCard => AT_KEYEXCHANGE,
+            KeyStorage::SmartCard => AT_ECDHE_P256,
             _ => 0,
         };
         let status = NCryptOpenKey(
