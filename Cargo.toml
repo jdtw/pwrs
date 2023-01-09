@@ -10,7 +10,7 @@ A Win32 command-line password manager.
 
 [dependencies]
 clap = "2.31"
-clipboard-win = "2.1"
+clipboard-win = "4.5"
 failure = "0.1"
 hex = "0.3"
 memsec = "0.5"
